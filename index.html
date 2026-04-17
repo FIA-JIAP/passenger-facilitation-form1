@@ -59,11 +59,6 @@
       margin-bottom: 4px;
       letter-spacing: 0.3px;
     }
-    .form-header .sub {
-      font-size: 13px;
-      opacity: 0.85;
-      line-height: 1.5;
-    }
     .form-header .dept {
       font-size: 12px;
       opacity: 0.7;
@@ -371,7 +366,7 @@
             <label for="arrival" class="option-label">Arrival</label>
           </div>
           <div class="option-item">
-            <input type="radio" name="travelType" id="departure" value="Departure">
+            <input type="radio" name="travelType" id="departure" value="Departure" required>
             <label for="departure" class="option-label">Departure</label>
           </div>
         </div>
@@ -401,17 +396,14 @@
         </div>
       </div>
 
-      <!-- Official/Government fields (shown only when Official/Government is selected) -->
-      <div id="officialFields" style="display:none;">
-        <div class="field-row" style="margin-top:12px;">
-          <div class="field-group">
-            <label>Designation of Primary Passenger <span class="req">*</span></label>
-            <input type="text" id="paxDesignation" placeholder="e.g. Director, Secretary, etc.">
-          </div>
-          <div class="field-group">
-            <label>Department of Primary Passenger <span class="req">*</span></label>
-            <input type="text" id="paxDepartment" placeholder="e.g. Ministry of Interior">
-          </div>
+      <div class="field-row" style="margin-top:12px;">
+        <div class="field-group">
+          <label>Designation of Primary Passenger <span class="req">*</span></label>
+          <input type="text" id="paxDesignation" required placeholder="e.g. Director, Manager, etc.">
+        </div>
+        <div class="field-group">
+          <label>Department / Company of Primary Passenger <span class="req">*</span></label>
+          <input type="text" id="paxDepartment" required placeholder="e.g. Ministry of Interior / ABC Corp.">
         </div>
       </div>
 
@@ -422,6 +414,11 @@
         <label>Reference Person (Name and Designation)</label>
         <input type="text" id="referencePerson" placeholder="Name and designation of the referring person/department">
         <div class="helper-text">Name of the Person or Department through whom this request is being routed. Write "Self" if the official is travelling in person.</div>
+      </div>
+
+      <div class="field-group">
+        <label>Reference Contact Number <span class="req">*</span></label>
+        <input type="tel" id="referenceContact" required placeholder="+92 3XX XXXXXXX">
       </div>
 
       <!-- ==================== PRO DETAILS ==================== -->
@@ -466,7 +463,7 @@
       </div>
 
       <!-- ==================== SUBMIT ==================== -->
-      <button type="submit" class="submit-btn">
+      <button type="submit" id="submitBtn" class="submit-btn">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
         Submit via WhatsApp
       </button>
@@ -515,13 +512,21 @@
   }
 
   function formatTime(timeStr) {
-    if (!timeStr) return '';
-    var parts = timeStr.split(':');
-    var hour = parseInt(parts[0]);
-    var min = parts[1];
-    var ampm = hour >= 12 ? 'PM' : 'AM';
-    var h12 = hour % 12 || 12;
-    return h12 + ':' + min + ' ' + ampm;
+    // <input type="time"> already yields 24-hour "HH:MM"
+    return timeStr || '';
+  }
+
+  function isValidEmail(s) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+  }
+
+  function isValidPhone(s) {
+    var digits = (String(s).match(/\d/g) || []).length;
+    return /^[+\d][\d\s()-]{5,}$/.test(s) && digits >= 7 && digits <= 15;
+  }
+
+  function escapeWa(s) {
+    return String(s == null ? '' : s).replace(/[*_~`]/g, '');
   }
 
   // Add accompanying passenger
@@ -552,18 +557,6 @@
     }
   };
 
-  // Show/hide official fields based on Type selection
-  document.getElementById('requestType').addEventListener('change', function() {
-    var officialFields = document.getElementById('officialFields');
-    if (this.value === 'Official/Government') {
-      officialFields.style.display = 'block';
-    } else {
-      officialFields.style.display = 'none';
-      document.getElementById('paxDesignation').value = '';
-      document.getElementById('paxDepartment').value = '';
-    }
-  });
-
   function getAccompanyingPassengers() {
     var entries = paxContainer.querySelectorAll('.pax-entry');
     var list = [];
@@ -586,12 +579,16 @@
     }
     var url = GOOGLE_SCRIPT_URL + '?' + params.join('&');
 
-    // Method 1: fetch (works on modern browsers)
+    // Prefer sendBeacon: queued by the browser even if the page navigates away.
+    if (navigator.sendBeacon) {
+      try {
+        if (navigator.sendBeacon(url)) return;
+      } catch (e) {}
+    }
     try {
-      fetch(url, { mode: 'no-cors', redirect: 'follow' }).catch(function(){});
-    } catch(e) {}
-
-    // Method 2: Image load (backup, works everywhere)
+      fetch(url, { mode: 'no-cors', redirect: 'follow', keepalive: true }).catch(function(){});
+    } catch (e) {}
+    // Image fallback for older browsers
     var img = new Image();
     img.src = url;
   }
@@ -601,17 +598,66 @@
     statusMsg.className = 'status-msg';
     statusMsg.style.display = 'none';
 
-    // Validate required fields
     var valid = true;
-    var textFields = ['firstName','lastName','paxAge','phone','email','flightNumber','airlineName','flightDate','flightTime'];
+    var errorMsg = '';
+
+    function markInvalid(field, onEventName) {
+      field.style.borderColor = '#c0392b';
+      field.addEventListener(onEventName || 'input', function resetBorder() {
+        field.style.borderColor = '';
+      }, { once: true });
+    }
+
+    // Required text/number/date/time fields (includes new: paxDesignation, paxDepartment, referenceContact)
+    var textFields = [
+      'firstName','lastName','paxAge','phone','email',
+      'flightNumber','airlineName','flightDate','flightTime',
+      'paxDesignation','paxDepartment','referenceContact'
+    ];
     for (var i = 0; i < textFields.length; i++) {
       var f = document.getElementById(textFields[i]);
       if (!f.value.trim()) {
         valid = false;
-        f.style.borderColor = '#c0392b';
-        (function(field) {
-          field.addEventListener('input', function() { field.style.borderColor = ''; }, { once: true });
-        })(f);
+        markInvalid(f);
+      }
+    }
+
+    // Format checks (only when the value is present; empty is already flagged above)
+    var emailField = document.getElementById('email');
+    if (emailField.value.trim() && !isValidEmail(emailField.value.trim())) {
+      valid = false;
+      errorMsg = errorMsg || 'Please enter a valid email address.';
+      markInvalid(emailField);
+    }
+
+    var phoneField = document.getElementById('phone');
+    if (phoneField.value.trim() && !isValidPhone(phoneField.value.trim())) {
+      valid = false;
+      errorMsg = errorMsg || 'Please enter a valid phone number.';
+      markInvalid(phoneField);
+    }
+
+    var refContactField = document.getElementById('referenceContact');
+    if (refContactField.value.trim() && !isValidPhone(refContactField.value.trim())) {
+      valid = false;
+      errorMsg = errorMsg || 'Please enter a valid reference contact number.';
+      markInvalid(refContactField);
+    }
+
+    var proContactField = document.getElementById('proContact');
+    if (proContactField.value.trim() && !isValidPhone(proContactField.value.trim())) {
+      valid = false;
+      errorMsg = errorMsg || 'Please enter a valid PRO contact number.';
+      markInvalid(proContactField);
+    }
+
+    var paxAgeField = document.getElementById('paxAge');
+    if (paxAgeField.value.trim()) {
+      var ageNum = parseInt(paxAgeField.value, 10);
+      if (isNaN(ageNum) || ageNum < 1 || ageNum > 120) {
+        valid = false;
+        errorMsg = errorMsg || 'Please enter a valid age between 1 and 120.';
+        markInvalid(paxAgeField);
       }
     }
 
@@ -622,60 +668,73 @@
     var typeVal = typeEl.value;
 
     if (!radioChecked) valid = false;
-    if (!categoryVal) {
-      valid = false;
-      categoryEl.style.borderColor = '#c0392b';
-      categoryEl.addEventListener('change', function() { categoryEl.style.borderColor = ''; }, { once: true });
-    }
-    if (!typeVal) {
-      valid = false;
-      typeEl.style.borderColor = '#c0392b';
-      typeEl.addEventListener('change', function() { typeEl.style.borderColor = ''; }, { once: true });
-    }
+    if (!categoryVal) { valid = false; markInvalid(categoryEl, 'change'); }
+    if (!typeVal) { valid = false; markInvalid(typeEl, 'change'); }
 
-    // Validate official fields if Official/Government is selected
-    if (typeVal === 'Official/Government') {
-      var desField = document.getElementById('paxDesignation');
-      var deptField = document.getElementById('paxDepartment');
-      if (!desField.value.trim()) {
-        valid = false;
-        desField.style.borderColor = '#c0392b';
-        desField.addEventListener('input', function() { desField.style.borderColor = ''; }, { once: true });
-      }
-      if (!deptField.value.trim()) {
-        valid = false;
-        deptField.style.borderColor = '#c0392b';
-        deptField.addEventListener('input', function() { deptField.style.borderColor = ''; }, { once: true });
-      }
-    }
-
-    // Validate accompanying passengers if Family or Group is selected
+    // Validate accompanying passengers when Family or Group is selected
     if (categoryVal === 'Family' || categoryVal === 'Group') {
       var paxEntries = paxContainer.querySelectorAll('.pax-entry');
-      if (paxEntries.length === 0) {
-        valid = false;
-        var addBtn = document.getElementById('addPaxBtn');
+      var addBtn = document.getElementById('addPaxBtn');
+      function flagAddBtn() {
         addBtn.style.borderColor = '#c0392b';
         addBtn.style.color = '#c0392b';
         addBtn.style.background = '#fdf0ef';
-        addBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setTimeout(function() {
-          showError('You have selected "' + categoryVal + '" but have not added any accompanying passengers. Please add them using the button above.');
-        }, 400);
         addBtn.addEventListener('click', function() {
           addBtn.style.borderColor = '';
           addBtn.style.color = '';
           addBtn.style.background = '';
-          statusMsg.style.display = 'none';
         }, { once: true });
-        return;
+      }
+
+      if (paxEntries.length === 0) {
+        valid = false;
+        errorMsg = errorMsg || 'You selected "' + categoryVal + '" but have not added any accompanying passengers.';
+        flagAddBtn();
+      } else {
+        var allFilled = true;
+        for (var m = 0; m < paxEntries.length; m++) {
+          var nameInput = paxEntries[m].querySelector('.apName');
+          var ageInput = paxEntries[m].querySelector('.apAge');
+          var genderInput = paxEntries[m].querySelector('.apGender');
+          var nm = nameInput.value.trim();
+          var ag = ageInput.value.trim();
+          var gd = genderInput.value;
+
+          if (!nm) { allFilled = false; markInvalid(nameInput); }
+          if (!ag) {
+            allFilled = false;
+            markInvalid(ageInput);
+          } else {
+            var apAgeNum = parseInt(ag, 10);
+            if (isNaN(apAgeNum) || apAgeNum < 0 || apAgeNum > 120) {
+              allFilled = false;
+              markInvalid(ageInput);
+            }
+          }
+          if (!gd) { allFilled = false; markInvalid(genderInput, 'change'); }
+        }
+        if (!allFilled) {
+          valid = false;
+          errorMsg = errorMsg || 'Please complete every field for each accompanying passenger.';
+        }
       }
     }
 
     if (!valid) {
-      showError('Please fill in all required fields.');
+      showError(errorMsg || 'Please fill in all required fields.');
       return;
     }
+
+    // Prevent double-submission
+    var submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.6';
+    submitBtn.style.cursor = 'not-allowed';
+    setTimeout(function() {
+      submitBtn.disabled = false;
+      submitBtn.style.opacity = '';
+      submitBtn.style.cursor = '';
+    }, 3000);
 
     // Collect values
     var firstName = document.getElementById('firstName').value.trim();
@@ -693,6 +752,7 @@
     var paxDesignation = document.getElementById('paxDesignation').value.trim();
     var paxDepartment = document.getElementById('paxDepartment').value.trim();
     var referencePerson = document.getElementById('referencePerson').value.trim();
+    var referenceContact = document.getElementById('referenceContact').value.trim();
 
     var proName = document.getElementById('proName').value.trim();
     var proContact = document.getElementById('proContact').value.trim();
@@ -703,78 +763,78 @@
     var comments = document.getElementById('comments').value.trim();
 
     // -------------------------------------------------------
-    // STEP 1: Save to Google Sheet
+    // STEP 1: Save to Google Sheet (sendBeacon is queued reliably even on navigation)
     // -------------------------------------------------------
     var paxListStr = '';
     for (var j = 0; j < accompanyingPax.length; j++) {
       paxListStr += (j+1) + '. ' + accompanyingPax[j].name + ' (Age: ' + accompanyingPax[j].age + ', ' + accompanyingPax[j].gender + '); ';
     }
 
-    if (GOOGLE_SCRIPT_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') {
-      sendToGoogleSheet({
-        firstName: firstName,
-        lastName: lastName,
-        paxAge: paxAge,
-        email: email,
-        phone: phone,
-        flightNumber: flightNumber,
-        airlineName: airlineName,
-        flightDate: flightDate,
-        flightTime: flightTime,
-        travel: travel,
-        category: category,
-        requestType: requestType,
-        paxDesignation: paxDesignation,
-        paxDepartment: paxDepartment,
-        referencePerson: referencePerson,
-        proName: proName,
-        proContact: proContact,
-        proDesignation: proDesignation,
-        proDepartment: proDepartment,
-        accompanyingCount: accompanyingPax.length.toString(),
-        accompanyingDetails: paxListStr,
-        comments: comments
-      });
-    }
+    sendToGoogleSheet({
+      firstName: firstName,
+      lastName: lastName,
+      paxAge: paxAge,
+      email: email,
+      phone: phone,
+      flightNumber: flightNumber,
+      airlineName: airlineName,
+      flightDate: flightDate,
+      flightTime: flightTime,
+      travel: travel,
+      category: category,
+      requestType: requestType,
+      paxDesignation: paxDesignation,
+      paxDepartment: paxDepartment,
+      referencePerson: referencePerson,
+      referenceContact: referenceContact,
+      proName: proName,
+      proContact: proContact,
+      proDesignation: proDesignation,
+      proDepartment: proDepartment,
+      accompanyingCount: accompanyingPax.length.toString(),
+      accompanyingDetails: paxListStr,
+      comments: comments
+    });
 
     // -------------------------------------------------------
-    // STEP 2: Open WhatsApp
+    // STEP 2: Build WhatsApp message (escape user input so stray *_~` don't break formatting)
     // -------------------------------------------------------
-    var msg = '*PASSENGER FACILITATION REQUEST (' + travel + ')*\n';
+    var msg = '*PASSENGER FACILITATION REQUEST (' + escapeWa(travel) + ')*\n';
     msg += '================================\n\n';
 
     msg += '*PRIMARY PASSENGER INFORMATION*\n';
     msg += '───────────────\n';
-    msg += '*Name:* ' + firstName + ' ' + lastName + '\n';
-    msg += '*Age:* ' + paxAge + '\n';
-    msg += '*Email:* ' + email + '\n';
-    msg += '*Phone:* ' + phone + '\n';
-    msg += '*Designation:* ' + (paxDesignation || 'Nil') + '\n';
-    msg += '*Department:* ' + (paxDepartment || 'Nil') + '\n\n';
+    msg += '*Name:* ' + escapeWa(firstName) + ' ' + escapeWa(lastName) + '\n';
+    msg += '*Age:* ' + escapeWa(paxAge) + '\n';
+    msg += '*Email:* ' + escapeWa(email) + '\n';
+    msg += '*Phone:* ' + escapeWa(phone) + '\n';
+    msg += '*Designation:* ' + escapeWa(paxDesignation) + '\n';
+    msg += '*Department / Company:* ' + escapeWa(paxDepartment) + '\n\n';
 
     msg += '*FLIGHT DETAILS*\n';
     msg += '────────\n';
-    msg += '*Flight:* ' + flightNumber + '\n';
-    msg += '*Airline:* ' + airlineName + '\n';
-    msg += '*Date:* ' + flightDate + '\n';
-    msg += '*Time:* ' + flightTime + '\n\n';
+    msg += '*Flight:* ' + escapeWa(flightNumber) + '\n';
+    msg += '*Airline:* ' + escapeWa(airlineName) + '\n';
+    msg += '*Date:* ' + escapeWa(flightDate) + '\n';
+    msg += '*Time:* ' + escapeWa(flightTime) + '\n\n';
 
     msg += '*CATEGORY & TYPE*\n';
     msg += '─────────\n';
-    msg += '*Category:* ' + category + '\n';
-    msg += '*Type:* ' + requestType + '\n\n';
+    msg += '*Category:* ' + escapeWa(category) + '\n';
+    msg += '*Type:* ' + escapeWa(requestType) + '\n\n';
 
     msg += '*REFERENCE*\n';
     msg += '──────\n';
-    msg += referencePerson + '\n\n';
+    msg += '*Person:* ' + (referencePerson ? escapeWa(referencePerson) : 'Nil') + '\n';
+    msg += '*Contact:* ' + escapeWa(referenceContact) + '\n\n';
 
     msg += '*PRO DETAILS*\n';
     msg += '───────\n';
     if (proName || proContact || proDesignation || proDepartment) {
-      msg += '*PRO Name:* ' + (proName || 'Nil') + '\n';
-      msg += '*PRO Contact:* ' + (proContact || 'Nil') + '\n';
-      msg += '*PRO Designation:* ' + (proDesignation || 'Nil') + '\n';
-      msg += '*PRO Department:* ' + (proDepartment || 'Nil') + '\n';
+      msg += '*PRO Name:* ' + (proName ? escapeWa(proName) : 'Nil') + '\n';
+      msg += '*PRO Contact:* ' + (proContact ? escapeWa(proContact) : 'Nil') + '\n';
+      msg += '*PRO Designation:* ' + (proDesignation ? escapeWa(proDesignation) : 'Nil') + '\n';
+      msg += '*PRO Department:* ' + (proDepartment ? escapeWa(proDepartment) : 'Nil') + '\n';
     } else {
       msg += 'Nil\n';
     }
@@ -785,7 +845,7 @@
     if (accompanyingPax.length > 0) {
       msg += '*Total:* ' + accompanyingPax.length + '\n';
       for (var k = 0; k < accompanyingPax.length; k++) {
-        msg += (k+1) + '. ' + accompanyingPax[k].name + ' (Age: ' + accompanyingPax[k].age + ', ' + accompanyingPax[k].gender + ')\n';
+        msg += (k+1) + '. ' + escapeWa(accompanyingPax[k].name) + ' (Age: ' + escapeWa(accompanyingPax[k].age) + ', ' + escapeWa(accompanyingPax[k].gender) + ')\n';
       }
     } else {
       msg += 'Nil\n';
@@ -794,15 +854,14 @@
 
     msg += '*ADDITIONAL COMMENTS*\n';
     msg += '───────────\n';
-    msg += (comments || 'Nil') + '\n\n';
+    msg += (comments ? escapeWa(comments) : 'Nil') + '\n\n';
 
     msg += '================================';
 
     var waUrl = 'https://wa.me/' + WHATSAPP_NUMBER + '?text=' + encodeURIComponent(msg);
 
-    setTimeout(function() {
-      window.open(waUrl, '_blank');
-    }, 500);
+    // Open synchronously within the submit gesture so popup blockers don't interfere.
+    window.open(waUrl, '_blank');
   });
 </script>
 
