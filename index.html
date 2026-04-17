@@ -333,6 +333,17 @@
         <input type="email" id="email" required placeholder="example@example.com">
       </div>
 
+      <div class="field-row">
+        <div class="field-group">
+          <label>Designation <span class="req">*</span></label>
+          <input type="text" id="paxDesignation" required placeholder="e.g. Director, Manager, etc.">
+        </div>
+        <div class="field-group">
+          <label>Department/Company <span class="req">*</span></label>
+          <input type="text" id="paxDepartment" required placeholder="e.g. Ministry of Interior / ABC Corp.">
+        </div>
+      </div>
+
       <!-- ==================== FLIGHT DETAILS ==================== -->
       <div class="section-title">Flight Details</div>
 
@@ -393,17 +404,6 @@
             <option value="Private">Private</option>
             <option value="Others">Others</option>
           </select>
-        </div>
-      </div>
-
-      <div class="field-row" style="margin-top:12px;">
-        <div class="field-group">
-          <label>Designation of Primary Passenger <span class="req">*</span></label>
-          <input type="text" id="paxDesignation" required placeholder="e.g. Director, Manager, etc.">
-        </div>
-        <div class="field-group">
-          <label>Department / Company of Primary Passenger <span class="req">*</span></label>
-          <input type="text" id="paxDepartment" required placeholder="e.g. Ministry of Interior / ABC Corp.">
         </div>
       </div>
 
@@ -809,7 +809,7 @@
     msg += '*Email:* ' + escapeWa(email) + '\n';
     msg += '*Phone:* ' + escapeWa(phone) + '\n';
     msg += '*Designation:* ' + escapeWa(paxDesignation) + '\n';
-    msg += '*Department / Company:* ' + escapeWa(paxDepartment) + '\n\n';
+    msg += '*Department/Company:* ' + escapeWa(paxDepartment) + '\n\n';
 
     msg += '*FLIGHT DETAILS*\n';
     msg += '────────\n';
