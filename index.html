@@ -158,6 +158,9 @@
     .datetime-row .field-group:first-child { flex: 1.2; }
     .datetime-row .field-group:last-child { flex: 0.8; }
 
+    .time-select-row { display: flex; gap: 8px; }
+    .time-select-row select { flex: 1; min-width: 0; }
+
     /* Accompanying passengers */
     .pax-entry {
       background: #f8faf9;
@@ -365,7 +368,15 @@
         </div>
         <div class="field-group">
           <label>Time <span class="req">*</span></label>
-          <input type="time" id="flightTime" required>
+          <div class="time-select-row">
+            <select id="flightHour" required aria-label="Hour (24h)">
+              <option value="">HH</option>
+            </select>
+            <select id="flightMinute" required aria-label="Minute">
+              <option value="">MM</option>
+            </select>
+          </div>
+          <div class="helper-text">24-hour format (00-23 : 00-59)</div>
         </div>
       </div>
 
@@ -512,9 +523,28 @@
   }
 
   function formatTime(timeStr) {
-    // <input type="time"> already yields 24-hour "HH:MM"
+    // Already assembled as 24-hour "HH:MM" from the hour/minute dropdowns
     return timeStr || '';
   }
+
+  // Populate 24-hour time dropdowns (00-23 : 00-59)
+  (function populateTimeDropdowns() {
+    var hourSel = document.getElementById('flightHour');
+    var minSel = document.getElementById('flightMinute');
+    function pad(n) { return n < 10 ? '0' + n : String(n); }
+    for (var h = 0; h < 24; h++) {
+      var o = document.createElement('option');
+      o.value = pad(h);
+      o.textContent = pad(h);
+      hourSel.appendChild(o);
+    }
+    for (var m = 0; m < 60; m++) {
+      var o2 = document.createElement('option');
+      o2.value = pad(m);
+      o2.textContent = pad(m);
+      minSel.appendChild(o2);
+    }
+  })();
 
   function isValidEmail(s) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
@@ -608,10 +638,10 @@
       }, { once: true });
     }
 
-    // Required text/number/date/time fields (includes new: paxDesignation, paxDepartment, referenceContact)
+    // Required text/number/date fields (time is handled via two dropdowns below)
     var textFields = [
       'firstName','lastName','paxAge','phone','email',
-      'flightNumber','airlineName','flightDate','flightTime',
+      'flightNumber','airlineName','flightDate',
       'paxDesignation','paxDepartment','referenceContact'
     ];
     for (var i = 0; i < textFields.length; i++) {
@@ -621,6 +651,12 @@
         markInvalid(f);
       }
     }
+
+    // Time dropdowns: both hour and minute must be chosen
+    var hourEl = document.getElementById('flightHour');
+    var minuteEl = document.getElementById('flightMinute');
+    if (!hourEl.value) { valid = false; markInvalid(hourEl, 'change'); }
+    if (!minuteEl.value) { valid = false; markInvalid(minuteEl, 'change'); }
 
     // Format checks (only when the value is present; empty is already flagged above)
     var emailField = document.getElementById('email');
@@ -745,7 +781,7 @@
     var flightNumber = document.getElementById('flightNumber').value.trim();
     var airlineName = document.getElementById('airlineName').value.trim();
     var flightDate = formatDate(document.getElementById('flightDate').value);
-    var flightTime = formatTime(document.getElementById('flightTime').value);
+    var flightTime = formatTime(hourEl.value + ':' + minuteEl.value);
     var travel = radioChecked.value;
     var category = categoryVal;
     var requestType = typeVal;
