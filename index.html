@@ -936,12 +936,11 @@
     // -------------------------------------------------------
     // STEP 2: Build WhatsApp message (escape user input so stray *_~` don't break formatting)
     // -------------------------------------------------------
-    var SEP  = '========';
     var RULE = '──────';
 
-    var msg = '*PASSENGER FACILITATION REQUEST (' + escapeWa(travel) + ')*\n';
-    msg += '*Request Code:* ' + requestCode + '\n';
-    msg += SEP + '\n\n';
+    // Opening line: the travel type with the request code beside it, on one
+    // line and with no rule beneath it.
+    var msg = '*' + escapeWa(travel) + ' (Request Code: ' + requestCode + ')*\n\n';
 
     msg += '*PRIMARY PASSENGER INFORMATION*\n';
     msg += RULE + '\n';
