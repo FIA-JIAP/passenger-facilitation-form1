@@ -51,6 +51,33 @@
  *  AKfycb... string given above.
  *
  * ----------------------------------------------------------------------------
+ *  NOTICE OF A RECORDED ENTRY
+ *
+ *  Put the officer's address into NOTIFY_EMAIL and he will be sent the
+ *  particulars of every entry the moment it is recorded, laid out as they
+ *  were submitted.
+ *
+ *  This is what answers the question of whether a WhatsApp message can be
+ *  trusted. The notice is composed by this script on your own Google account
+ *  and not by the applicant, so no applicant can bring one into being and
+ *  none can alter one once it has arrived.
+ *
+ *    a WhatsApp message whose code matches no notice
+ *        the form was never used
+ *    a WhatsApp message whose code matches a notice saying something else
+ *        the message has been edited since it was submitted
+ *
+ *  Nothing here has to be worked out, looked up or decoded, so there is no
+ *  method for anyone to study and defeat.
+ *
+ *  It should be understood, though, that this proves a request passed through
+ *  the form. It cannot show that the particulars given were truthful, which
+ *  no arrangement of this kind can.
+ *
+ *  Run sendTestNotice from the editor to see what the officer will receive.
+ *  A consumer Google account allows a hundred such notices a day.
+ *
+ * ----------------------------------------------------------------------------
  *  COLLECTING INTO A FRESH SPREADSHEET
  *
  *  Where the entries are to be gathered in a new spreadsheet, leaving the
@@ -150,6 +177,25 @@ var SPREADSHEET_ID = '';
 
 /** Time zone used for the Timestamp column. */
 var TIME_ZONE = 'Asia/Karachi';
+
+/**
+ * Address to be notified the moment a genuine entry is recorded. Ordinarily
+ * the officer who receives the WhatsApp messages. Several addresses may be
+ * given, separated by commas.
+ *
+ * This notice is the safeguard against an edited WhatsApp message. It is
+ * composed by this script on your own Google account, not by the applicant,
+ * so no applicant can bring one into being and none can alter one after it
+ * has arrived. A WhatsApp message whose code matches no notice never came
+ * from the form. One that matches a notice saying something different has
+ * been edited since it was submitted.
+ *
+ * Leave it empty to send no notices at all.
+ */
+var NOTIFY_EMAIL = '';
+
+/** Name the notice is shown as coming from. */
+var NOTIFY_SENDER_NAME = 'Passenger Facilitation Request Form';
 
 /**
  * Columns held as plain text, so that Google Sheets records exactly what was
@@ -295,7 +341,16 @@ function handleSubmission(e) {
     }
     sheet.appendRow(row);
 
-    return reply({ ok: true, code: code, verified: values['Code Verified'] });
+    // The notice goes out only for an entry actually recorded. A failure to
+    // send is never allowed to fail the submission itself.
+    var notified = false;
+    try {
+      notified = sendNotice(values, sheet);
+    } catch (mailErr) {
+      Logger.log('Notice not sent: ' + mailErr);
+    }
+
+    return reply({ ok: true, code: code, verified: values['Code Verified'], notified: notified });
   } catch (err) {
     return reply({ ok: false, error: String(err) });
   } finally {
@@ -426,6 +481,109 @@ function identitySignature(values) {
 
 
 /* ==========================================================================
+ *  NOTICE OF A RECORDED ENTRY
+ * ========================================================================== */
+
+/**
+ * Sends the officer the particulars exactly as they were recorded. Returns
+ * true when a notice went out, false when no address is set.
+ */
+function sendNotice(values, sheet) {
+  if (!NOTIFY_EMAIL) return false;
+
+  var code = values['Request Code'] || '(no code)';
+  var name = ((values['First Name'] || '') + ' ' + (values['Last Name'] || '')).trim() || '(no name)';
+  var subject = code + '  |  ' + name + '  |  ' +
+                (values['Flight Number'] || '') + ', ' + (values['Flight Date'] || '') +
+                ' (' + (values['Arrival/Departure'] || '') + ')';
+
+  var preamble = [
+    'This notice was composed by the request form itself at the moment the',
+    'entry below was recorded. It is the record of what was submitted.',
+    '',
+    'A WhatsApp message bearing the same code should say the same thing.',
+    'Where it says something different, it has been edited after submission.',
+    'Where no notice bearing the code exists, the form was never used at all.'
+  ];
+
+  var plain = preamble.slice();
+  plain.push('');
+  plain.push('----------------------------------------------------------');
+  plain.push('');
+  for (var i = 0; i < COLUMN_ORDER.length; i++) {
+    var heading = COLUMN_ORDER[i];
+    if (heading === 'Code Verified') continue;
+    var v = values[heading];
+    if (isBlankForNotice(heading, v)) continue;
+    plain.push(pad(heading, 22) + ' : ' + v);
+  }
+  plain.push('');
+  plain.push('----------------------------------------------------------');
+  plain.push('');
+  plain.push('Sheet: ' + sheet.getParent().getUrl());
+
+  var body = plain.join('\n');
+
+  MailApp.sendEmail({
+    to: NOTIFY_EMAIL,
+    subject: subject,
+    body: body,
+    htmlBody: noticeHtml(values, preamble, sheet),
+    name: NOTIFY_SENDER_NAME
+  });
+  return true;
+}
+
+/**
+ * True when a heading should be left out of the notice, so that it mirrors
+ * the WhatsApp message and the two may be compared line for line.
+ */
+function isBlankForNotice(heading, v) {
+  if (v === undefined || v === null || String(v).trim() === '') return true;
+  if (heading === 'Accompanying Count' && String(v).trim() === '0') return true;
+  return false;
+}
+
+/** Right pads a heading so that the plain text notice lines up. */
+function pad(text, width) {
+  var s = String(text);
+  while (s.length < width) s += ' ';
+  return s;
+}
+
+function escapeHtml(s) {
+  return String(s === undefined || s === null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/\n/g, '<br>');
+}
+
+function noticeHtml(values, preamble, sheet) {
+  var h = [];
+  h.push('<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a2332;max-width:620px">');
+  h.push('<p style="margin:0 0 14px;color:#4a5a6e;line-height:1.6">' +
+         escapeHtml(preamble.join('\n')) + '</p>');
+  h.push('<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%">');
+  for (var i = 0; i < COLUMN_ORDER.length; i++) {
+    var heading = COLUMN_ORDER[i];
+    if (heading === 'Code Verified') continue;
+    var v = values[heading];
+    if (isBlankForNotice(heading, v)) continue;
+    var emphasis = (heading === 'Request Code') ? 'font-weight:bold;' : '';
+    h.push('<tr>' +
+      '<td style="padding:6px 12px 6px 0;border-bottom:1px solid #e8ecf1;color:#6b7c8f;white-space:nowrap;vertical-align:top">' +
+        escapeHtml(heading) + '</td>' +
+      '<td style="padding:6px 0;border-bottom:1px solid #e8ecf1;' + emphasis + '">' +
+        escapeHtml(v) + '</td></tr>');
+  }
+  h.push('</table>');
+  h.push('<p style="margin:16px 0 0"><a href="' + escapeHtml(sheet.getParent().getUrl()) +
+         '" style="color:#145a3e">Open the register</a></p>');
+  h.push('</div>');
+  return h.join('');
+}
+
+
+/* ==========================================================================
  *  VALUES
  * ========================================================================== */
 
@@ -547,6 +705,36 @@ function layOutSheet(sheet) {
 
 
 /**
+ * Sends one specimen notice to NOTIFY_EMAIL so that you may see what the
+ * officer will receive. Nothing is written to the register. Run it from the
+ * editor after setting NOTIFY_EMAIL.
+ */
+function sendTestNotice() {
+  if (!NOTIFY_EMAIL) {
+    var none = 'NOTIFY_EMAIL is empty. Put the officer\'s address in it, save, and run this again.';
+    Logger.log(none);
+    return none;
+  }
+  var specimen = buildValues({
+    requestCode: 'PFR-260903-JPAH-B',
+    firstName: 'SPECIMEN', lastName: 'ENTRY', paxAge: '41',
+    email: 'specimen@example.com', phone: '+92 300 0000000',
+    paxDesignation: 'Assistant Director', paxDepartment: 'FIA, JIAP, Karachi',
+    flightNumber: 'PK-308', airlineName: 'PIA',
+    flightDate: '15 Oct 2026', flightTime: '17:45', travel: 'Departure',
+    category: 'Individual', requestType: 'Official/Government',
+    referencePerson: 'Self', referenceContact: '+92 21 00000000',
+    accompanyingCount: '0',
+    comments: 'This is a specimen notice. No entry has been recorded.'
+  });
+  sendNotice(specimen, getSheet());
+  var out = 'A specimen notice has been sent to ' + NOTIFY_EMAIL +
+            '. Nothing was written to the register.';
+  Logger.log(out);
+  return out;
+}
+
+/**
  * Run this from the editor, by choosing checkSetup in the function list and
  * pressing Run, before deploying anything. It writes nothing. It reports which
  * sheet the script can reach, which tab it will write to, and whether the two
@@ -585,6 +773,11 @@ function checkSetup() {
     }
     lines.push('To be added : ' + (missing.length ? missing.join(' | ') : 'nothing, every heading is already present'));
     lines.push('Check char  : a specimen code verifies as ' + PFRVERIFY('PFR-260903-JPAH-B') + ' (a tick is expected)');
+    lines.push('Notices to  : ' + (NOTIFY_EMAIL ||
+      'nobody, NOTIFY_EMAIL is empty, so no notice of a recorded entry will be sent'));
+    if (NOTIFY_EMAIL) {
+      lines.push('Quota left  : ' + MailApp.getRemainingDailyQuota() + ' notices today');
+    }
     lines.push('');
     lines.push('Setup looks sound. Now put it into service:');
     lines.push('  first time  : Deploy > New deployment > Web app,');
