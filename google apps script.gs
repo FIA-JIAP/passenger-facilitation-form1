@@ -38,6 +38,10 @@
  *  a.  Open the Google Sheet that receives the entries, then choose
  *      Extensions  >  Apps Script. This is the usual case.
  *
+ *      A project created on its own at script.google.com is attached to no
+ *      sheet at all. SPREADSHEET_ID must then be filled in, otherwise the
+ *      script has nothing to write to.
+ *
  *  b.  Or go to  script.google.com/home  and look under My Projects.
  *      Every project of yours is listed there, whether attached to a sheet
  *      or standing on its own.
@@ -58,7 +62,7 @@
  *  2.  Choose createCollectionSheet in the function list and press Run.
  *      Grant the permissions it asks for. It makes a new spreadsheet at the
  *      top level of your Drive, lays out the headings, and prints the
- *      identifier under View > Logs.
+ *      identifier in the Execution log panel below the editor.
  *  3.  Copy that identifier into SPREADSHEET_ID at the top of this file and
  *      save.
  *  4.  Run checkSetup and read the outcome. It should name the new
@@ -79,8 +83,9 @@
  *  4.  Set SHEET_NAME to the exact name of the tab that holds the data, and
  *      SPREADSHEET_ID only if the project is not attached to a sheet.
  *  5.  Choose checkSetup in the function list and press Run. Grant the
- *      permissions it asks for. Read the outcome under View > Logs and put
- *      right anything it reports before going further. It writes nothing.
+ *      permissions it asks for. Read the outcome in the Execution log
+ *      panel below the editor and put right anything it reports before
+ *      going further. It writes nothing.
  *  6.  Deploy  >  Manage deployments  >  edit the existing deployment (pencil
  *      icon)  >  Version: New version  >  Deploy.
  *      Retain the same deployment so that the /exec address already written
@@ -531,7 +536,7 @@ function layOutSheet(sheet) {
  * Run this from the editor, by choosing checkSetup in the function list and
  * pressing Run, before deploying anything. It writes nothing. It reports which
  * sheet the script can reach, which tab it will write to, and whether the two
- * new columns are in place. Read the outcome under View > Logs.
+ * new columns are in place. Read the outcome in the Execution log panel below the editor.
  */
 function checkSetup() {
   var lines = [];
