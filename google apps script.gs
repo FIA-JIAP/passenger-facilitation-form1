@@ -67,7 +67,7 @@
  *      save.
  *  4.  Run checkSetup and read the outcome. It should name the new
  *      spreadsheet and report that every heading is already present.
- *  5.  Deploy a new version of the same deployment, as at step 6 below.
+ *  5.  Put it into service, as at step 6 below.
  *
  *  Should you prefer to make the spreadsheet yourself, create it in Drive,
  *  put its identifier into SPREADSHEET_ID, and run prepareSheet instead of
@@ -86,11 +86,25 @@
  *      permissions it asks for. Read the outcome in the Execution log
  *      panel below the editor and put right anything it reports before
  *      going further. It writes nothing.
- *  6.  Deploy  >  Manage deployments  >  edit the existing deployment (pencil
- *      icon)  >  Version: New version  >  Deploy.
- *      Retain the same deployment so that the /exec address already written
- *      into index.html continues to work.
- *      Execute as: Me.        Who has access: Anyone.
+ *  6.  Put the script into service. Which of the two applies depends on
+ *      whether this project has been deployed before.
+ *
+ *      Never deployed, as with a project newly made at script.google.com:
+ *        Deploy  >  New deployment  >  the gear icon  >  Web app.
+ *        Execute as: Me.      Who has access: Anyone.
+ *        This yields a fresh web app address ending in /exec, which must
+ *        then be written into GOOGLE_SCRIPT_URL in index.html.
+ *
+ *      Already deployed, as with the project the form presently reaches:
+ *        Deploy  >  Manage deployments  >  the pencil icon  >
+ *        Version: New version  >  Deploy.
+ *        Edit the existing deployment rather than making another, so that
+ *        the address already in index.html goes on working.
+ *
+ *      Take care to choose Anyone and not "Anyone with Google account".
+ *      The form sends its entries without signing in, so the stricter
+ *      setting would turn every submission away.
+ *
  *  7.  Submit one test entry from the form and confirm that a fresh row
  *      appears carrying a code and a tick.
  *
@@ -572,7 +586,11 @@ function checkSetup() {
     lines.push('To be added : ' + (missing.length ? missing.join(' | ') : 'nothing, every heading is already present'));
     lines.push('Check char  : a specimen code verifies as ' + PFRVERIFY('PFR-260903-JPAH-B') + ' (a tick is expected)');
     lines.push('');
-    lines.push('Setup looks sound. Deploy > Manage deployments > New version.');
+    lines.push('Setup looks sound. Now put it into service:');
+    lines.push('  first time  : Deploy > New deployment > Web app,');
+    lines.push('                Execute as Me, Who has access Anyone.');
+    lines.push('  thereafter  : Deploy > Manage deployments > pencil >');
+    lines.push('                Version New version, which keeps the same address.');
   } catch (err) {
     lines.push('PROBLEM: ' + err.message);
   }
