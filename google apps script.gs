@@ -47,6 +47,29 @@
  *  AKfycb... string given above.
  *
  * ----------------------------------------------------------------------------
+ *  COLLECTING INTO A FRESH SPREADSHEET
+ *
+ *  Where the entries are to be gathered in a new spreadsheet, leaving the
+ *  older records undisturbed, follow this order. The deployment address stays
+ *  as it is, so index.html needs no alteration.
+ *
+ *  1.  Open the existing project by either route given above and paste this
+ *      file in, as at Installation below.
+ *  2.  Choose createCollectionSheet in the function list and press Run.
+ *      Grant the permissions it asks for. It makes a new spreadsheet at the
+ *      top level of your Drive, lays out the headings, and prints the
+ *      identifier under View > Logs.
+ *  3.  Copy that identifier into SPREADSHEET_ID at the top of this file and
+ *      save.
+ *  4.  Run checkSetup and read the outcome. It should name the new
+ *      spreadsheet and report that every heading is already present.
+ *  5.  Deploy a new version of the same deployment, as at step 6 below.
+ *
+ *  Should you prefer to make the spreadsheet yourself, create it in Drive,
+ *  put its identifier into SPREADSHEET_ID, and run prepareSheet instead of
+ *  createCollectionSheet.
+ *
+ * ----------------------------------------------------------------------------
  *  INSTALLATION
  *
  *  1.  Open the project as described above.
@@ -108,6 +131,17 @@ var SPREADSHEET_ID = '';
 
 /** Time zone used for the Timestamp column. */
 var TIME_ZONE = 'Asia/Karachi';
+
+/**
+ * Columns held as plain text, so that Google Sheets records exactly what was
+ * submitted. Without this a telephone number beginning with a zero loses it,
+ * a time such as 17:45 is turned into a time value, and a date is rewritten
+ * in whatever format the sheet happens to prefer.
+ */
+var TEXT_COLUMNS = [
+  'Timestamp', 'Request Code', 'Phone', 'Reference Contact', 'PRO Contact',
+  'Flight Number', 'Flight Date', 'Flight Time'
+];
 
 /** Column headings, in the order in which they are laid out. */
 var COLUMN_ORDER = [
@@ -417,6 +451,81 @@ function buildValues(params) {
 /* ==========================================================================
  *  SETTING UP
  * ========================================================================== */
+
+/**
+ * Creates a brand new spreadsheet for collecting the entries, lays out its
+ * headings and reports its identifier. Run this once from the editor, then
+ * copy the identifier it prints into SPREADSHEET_ID at the top of this file.
+ *
+ * The new file is placed at the top level of your Google Drive under the name
+ * given below. Nothing already recorded elsewhere is touched.
+ */
+function createCollectionSheet() {
+  var ss = SpreadsheetApp.create('Passenger Facilitation Requests');
+  var sheet = ss.getSheets()[0];
+  sheet.setName(SHEET_NAME);
+  layOutSheet(sheet);
+
+  var out = [
+    'A new spreadsheet has been created at the top level of your Drive.',
+    '',
+    'Name       : ' + ss.getName(),
+    'Address    : ' + ss.getUrl(),
+    'Identifier : ' + ss.getId(),
+    '',
+    'Now copy the identifier above into SPREADSHEET_ID at the top of this',
+    'file, save, and run checkSetup to confirm.'
+  ].join('\n');
+  Logger.log(out);
+  return out;
+}
+
+/**
+ * Lays out the headings and formatting on a spreadsheet you have created
+ * yourself. Point SPREADSHEET_ID at it first, then run this once.
+ */
+function prepareSheet() {
+  var sheet = getSheet();
+  if (sheet.getLastRow() > 1) {
+    var warning = 'This tab already holds ' + (sheet.getLastRow() - 1) +
+      ' row(s) of entries. Nothing has been changed. Use an empty tab.';
+    Logger.log(warning);
+    return warning;
+  }
+  layOutSheet(sheet);
+  var out = 'Headings laid out on "' + sheet.getName() + '". Run checkSetup to confirm.';
+  Logger.log(out);
+  return out;
+}
+
+/** Writes the heading row and settles the formatting of a fresh tab. */
+function layOutSheet(sheet) {
+  ensureColumnCapacity(sheet, COLUMN_ORDER.length);
+  sheet.getRange(1, 1, 1, COLUMN_ORDER.length).setValues([COLUMN_ORDER]);
+  formatHeaderRow(sheet, COLUMN_ORDER.length);
+
+  var rows = sheet.getMaxRows();
+  for (var i = 0; i < TEXT_COLUMNS.length; i++) {
+    var col = COLUMN_ORDER.indexOf(TEXT_COLUMNS[i]) + 1;
+    if (col > 0) sheet.getRange(1, col, rows, 1).setNumberFormat('@');
+  }
+
+  var widths = {
+    'Timestamp': 165, 'Request Code': 155, 'Code Verified': 95,
+    'Email': 200, 'Department/Company': 200, 'Reference Person': 200,
+    'Accompanying Details': 320, 'Comments': 320
+  };
+  for (var j = 0; j < COLUMN_ORDER.length; j++) {
+    var w = widths[COLUMN_ORDER[j]] || 130;
+    sheet.setColumnWidth(j + 1, w);
+  }
+
+  var verified = COLUMN_ORDER.indexOf('Code Verified') + 1;
+  if (verified > 0) {
+    sheet.getRange(1, verified, rows, 1).setHorizontalAlignment('center');
+  }
+}
+
 
 /**
  * Run this from the editor, by choosing checkSetup in the function list and
