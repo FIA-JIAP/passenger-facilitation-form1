@@ -9,6 +9,7 @@
   <meta property="og:url" content="https://fia-jiap.github.io/passenger-facilitation-form/">
   <meta property="og:type" content="website">
   <title>Passenger Facilitation Request Form</title>
+  <meta name="application-version" content="1.2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -260,6 +261,19 @@
       color: #922820;
       border: 1px solid #e8c4c0;
     }
+    .status-msg.success {
+      display: block;
+      background: #eef6f1;
+      color: #14563a;
+      border: 1px solid #b9ddc8;
+    }
+    .status-msg .code-line {
+      margin-top: 10px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+    }
 
     .helper-text { font-size: 11.5px; color: #7a8a9e; margin-top: 3px; }
 
@@ -491,6 +505,7 @@
   <div class="form-footer">
     Federal Investigation Agency &mdash; Immigration & Anti-Human Smuggling Wing, JIAP, Karachi
     <div class="credit">Created by: Asad Ali Sodhar, AD, FIA, JIAP, Karachi.</div>
+    <div class="credit">Version 1.2</div>
   </div>
 </div>
 
@@ -512,6 +527,19 @@
   function showError(message) {
     statusMsg.className = 'status-msg error';
     statusMsg.textContent = message;
+    statusMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function showSuccess(code) {
+    statusMsg.className = 'status-msg success';
+    statusMsg.textContent = '';
+    var note = document.createElement('div');
+    note.textContent = 'Your request has been recorded. WhatsApp is opening now \u2014 please tap Send to complete the submission. Kindly retain the code below for any follow-up.';
+    var line = document.createElement('div');
+    line.className = 'code-line';
+    line.textContent = 'Request Code: ' + code;
+    statusMsg.appendChild(note);
+    statusMsg.appendChild(line);
     statusMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
@@ -557,6 +585,65 @@
 
   function escapeWa(s) {
     return String(s == null ? '' : s).replace(/[*_~`]/g, '');
+  }
+
+  // ------------------------------------------------------------
+  // UNIQUE REQUEST CODE
+  // Shape: PFR-YYMMDD-XXXX-C
+  //   YYMMDD  date on which the form was filled
+  //   XXXX    four random characters
+  //   C       check character recomputed by the Google Sheet script,
+  //           which ticks the "Code Verified" column when it matches.
+  // The alphabet leaves out 0, 1, I, L, O and U so that a code read
+  // off a WhatsApp message cannot be mistaken for another one.
+  // Keep CODE_CHARS, CODE_WEIGHTS and codeCheckChar() identical to the
+  // copies in "google apps script.gs", otherwise no code will verify.
+  // ------------------------------------------------------------
+  var CODE_CHARS = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
+
+  // Every weight is prime to 30, the size of the alphabet, so that any single
+  // wrong character in a code is bound to upset the check character.
+  var CODE_WEIGHTS = [1, 17, 13, 11, 7, 23, 19, 17, 1, 29];
+
+  function codeCheckChar(datePart, randomPart) {
+    var sum = 0, i;
+    for (i = 0; i < datePart.length; i++) {
+      sum += (datePart.charCodeAt(i) - 48) * CODE_WEIGHTS[i];
+    }
+    for (i = 0; i < randomPart.length; i++) {
+      sum += CODE_CHARS.indexOf(randomPart.charAt(i)) * CODE_WEIGHTS[datePart.length + i];
+    }
+    return CODE_CHARS.charAt(sum % CODE_CHARS.length);
+  }
+
+  function randomCodeChars(n) {
+    var out = '';
+    var rng = null;
+    try {
+      if (window.crypto && typeof window.crypto.getRandomValues === 'function') rng = window.crypto;
+    } catch (e) { rng = null; }
+    // 240 is 8 x 30, so discarding 240-255 keeps every character equally likely.
+    while (out.length < n) {
+      var r;
+      if (rng) {
+        var b = new Uint8Array(1);
+        try { rng.getRandomValues(b); } catch (e) { rng = null; continue; }
+        r = b[0];
+        if (r >= 240) continue;
+      } else {
+        r = Math.floor(Math.random() * 240);
+      }
+      out += CODE_CHARS.charAt(r % CODE_CHARS.length);
+    }
+    return out;
+  }
+
+  function generateRequestCode() {
+    function pad2(n) { return n < 10 ? '0' + n : String(n); }
+    var now = new Date();
+    var stamp = pad2(now.getFullYear() % 100) + pad2(now.getMonth() + 1) + pad2(now.getDate());
+    var random = randomCodeChars(4);
+    return 'PFR-' + stamp + '-' + random + '-' + codeCheckChar(stamp, random);
   }
 
   // Add accompanying passenger
@@ -615,10 +702,14 @@
         if (navigator.sendBeacon(url)) return;
       } catch (e) {}
     }
-    try {
-      fetch(url, { mode: 'no-cors', redirect: 'follow', keepalive: true }).catch(function(){});
-    } catch (e) {}
-    // Image fallback for older browsers
+    if (typeof fetch === 'function') {
+      try {
+        fetch(url, { mode: 'no-cors', redirect: 'follow', keepalive: true }).catch(function(){});
+        return;
+      } catch (e) {}
+    }
+    // Image fallback for older browsers. Reached only when neither
+    // sendBeacon nor fetch was available, so the row is never sent twice.
     var img = new Image();
     img.src = url;
   }
@@ -626,7 +717,11 @@
   form.addEventListener('submit', function(e) {
     e.preventDefault();
     statusMsg.className = 'status-msg';
-    statusMsg.style.display = 'none';
+    // Clear the inline rule rather than setting it: an inline display:none
+    // outranks the .error / .success class rules and would keep the banner
+    // hidden. The base .status-msg rule already hides it.
+    statusMsg.style.display = '';
+    statusMsg.textContent = '';
 
     var valid = true;
     var errorMsg = '';
@@ -798,6 +893,11 @@
     var accompanyingPax = getAccompanyingPassengers();
     var comments = document.getElementById('comments').value.trim();
 
+    // One fresh code per submission. It travels to the Google Sheet and, in
+    // the same wording, inside the WhatsApp message, so the receiving officer
+    // can match the two.
+    var requestCode = generateRequestCode();
+
     // -------------------------------------------------------
     // STEP 1: Save to Google Sheet (sendBeacon is queued reliably even on navigation)
     // -------------------------------------------------------
@@ -807,6 +907,7 @@
     }
 
     sendToGoogleSheet({
+      requestCode: requestCode,
       firstName: firstName,
       lastName: lastName,
       paxAge: paxAge,
@@ -835,11 +936,15 @@
     // -------------------------------------------------------
     // STEP 2: Build WhatsApp message (escape user input so stray *_~` don't break formatting)
     // -------------------------------------------------------
+    var SEP  = '========';
+    var RULE = '──────';
+
     var msg = '*PASSENGER FACILITATION REQUEST (' + escapeWa(travel) + ')*\n';
-    msg += '================================\n\n';
+    msg += '*Request Code:* ' + requestCode + '\n';
+    msg += SEP + '\n\n';
 
     msg += '*PRIMARY PASSENGER INFORMATION*\n';
-    msg += '───────────────\n';
+    msg += RULE + '\n';
     msg += '*Name:* ' + escapeWa(firstName) + ' ' + escapeWa(lastName) + '\n';
     msg += '*Age:* ' + escapeWa(paxAge) + '\n';
     msg += '*Email:* ' + escapeWa(email) + '\n';
@@ -848,53 +953,58 @@
     msg += '*Department/Company:* ' + escapeWa(paxDepartment) + '\n\n';
 
     msg += '*FLIGHT DETAILS*\n';
-    msg += '────────\n';
+    msg += RULE + '\n';
     msg += '*Flight:* ' + escapeWa(flightNumber) + '\n';
     msg += '*Airline:* ' + escapeWa(airlineName) + '\n';
     msg += '*Date:* ' + escapeWa(flightDate) + '\n';
     msg += '*Time:* ' + escapeWa(flightTime) + '\n\n';
 
     msg += '*CATEGORY & TYPE*\n';
-    msg += '─────────\n';
+    msg += RULE + '\n';
     msg += '*Category:* ' + escapeWa(category) + '\n';
     msg += '*Type:* ' + escapeWa(requestType) + '\n\n';
 
     msg += '*REFERENCE*\n';
-    msg += '──────\n';
-    msg += '*Person:* ' + (referencePerson ? escapeWa(referencePerson) : 'Nil') + '\n';
+    msg += RULE + '\n';
+    if (referencePerson) {
+      msg += '*Person:* ' + escapeWa(referencePerson) + '\n';
+    }
     msg += '*Contact:* ' + escapeWa(referenceContact) + '\n\n';
 
-    msg += '*PRO DETAILS*\n';
-    msg += '───────\n';
+    // The three blocks below are written only when they carry something.
+    // An empty section leaves no heading behind in the WhatsApp message.
     if (proName || proContact || proDesignation || proDepartment) {
-      msg += '*PRO Name:* ' + (proName ? escapeWa(proName) : 'Nil') + '\n';
-      msg += '*PRO Contact:* ' + (proContact ? escapeWa(proContact) : 'Nil') + '\n';
-      msg += '*PRO Designation:* ' + (proDesignation ? escapeWa(proDesignation) : 'Nil') + '\n';
-      msg += '*PRO Department:* ' + (proDepartment ? escapeWa(proDepartment) : 'Nil') + '\n';
-    } else {
-      msg += 'Nil\n';
+      msg += '*PRO DETAILS*\n';
+      msg += RULE + '\n';
+      if (proName)        msg += '*PRO Name:* ' + escapeWa(proName) + '\n';
+      if (proContact)     msg += '*PRO Contact:* ' + escapeWa(proContact) + '\n';
+      if (proDesignation) msg += '*PRO Designation:* ' + escapeWa(proDesignation) + '\n';
+      if (proDepartment)  msg += '*PRO Department:* ' + escapeWa(proDepartment) + '\n';
+      msg += '\n';
     }
-    msg += '\n';
 
-    msg += '*ACCOMPANYING PASSENGERS*\n';
-    msg += '─────────────\n';
     if (accompanyingPax.length > 0) {
+      msg += '*ACCOMPANYING PASSENGERS*\n';
+      msg += RULE + '\n';
       msg += '*Total:* ' + accompanyingPax.length + '\n';
       for (var k = 0; k < accompanyingPax.length; k++) {
         msg += (k+1) + '. ' + escapeWa(accompanyingPax[k].name) + ' (Age: ' + escapeWa(accompanyingPax[k].age) + ', ' + escapeWa(accompanyingPax[k].gender) + ')\n';
       }
-    } else {
-      msg += 'Nil\n';
+      msg += '\n';
     }
-    msg += '\n';
 
-    msg += '*ADDITIONAL COMMENTS*\n';
-    msg += '───────────\n';
-    msg += (comments ? escapeWa(comments) : 'Nil') + '\n\n';
+    if (comments) {
+      msg += '*ADDITIONAL COMMENTS*\n';
+      msg += RULE + '\n';
+      msg += escapeWa(comments) + '\n\n';
+    }
 
-    msg += '================================';
+    // The message closes on its last populated line, with no rule underneath.
+    msg = msg.replace(/\s+$/, '');
 
     var waUrl = 'https://wa.me/' + WHATSAPP_NUMBER + '?text=' + encodeURIComponent(msg);
+
+    showSuccess(requestCode);
 
     // Open synchronously within the submit gesture so popup blockers don't interfere.
     window.open(waUrl, '_blank');
