@@ -28,19 +28,47 @@
  *  did not come from the form at all, and should be treated accordingly.
  *
  * ----------------------------------------------------------------------------
+ *  FINDING THE EXISTING PROJECT
+ *
+ *  The form sends its entries to this deployment:
+ *    AKfycbyLUWCyd-5fzHuShdonzF4bOUxLSUUIVasdXQ8edNmkdQe00SwgxWazFQa2oZPpxCivZw
+ *
+ *  Either route below will reach the project that owns it.
+ *
+ *  a.  Open the Google Sheet that receives the entries, then choose
+ *      Extensions  >  Apps Script. This is the usual case.
+ *
+ *  b.  Or go to  script.google.com/home  and look under My Projects.
+ *      Every project of yours is listed there, whether attached to a sheet
+ *      or standing on its own.
+ *
+ *  To confirm you have opened the right one, choose Deploy > Manage
+ *  deployments and check that the Web app address ends in the same
+ *  AKfycb... string given above.
+ *
+ * ----------------------------------------------------------------------------
  *  INSTALLATION
  *
- *  1.  Open the Google Sheet that receives the form entries.
- *  2.  Extensions  >  Apps Script.
+ *  1.  Open the project as described above.
+ *  2.  Keep a copy of whatever is presently in the editor, in case you wish
+ *      to go back to it.
  *  3.  Remove the existing contents of the editor and paste this file in.
- *  4.  Set SHEET_NAME below to the exact name of the tab that holds the data.
- *  5.  Deploy  >  Manage deployments  >  edit the existing deployment (pencil
+ *  4.  Set SHEET_NAME to the exact name of the tab that holds the data, and
+ *      SPREADSHEET_ID only if the project is not attached to a sheet.
+ *  5.  Choose checkSetup in the function list and press Run. Grant the
+ *      permissions it asks for. Read the outcome under View > Logs and put
+ *      right anything it reports before going further. It writes nothing.
+ *  6.  Deploy  >  Manage deployments  >  edit the existing deployment (pencil
  *      icon)  >  Version: New version  >  Deploy.
  *      Retain the same deployment so that the /exec address already written
  *      into index.html continues to work.
  *      Execute as: Me.        Who has access: Anyone.
- *  6.  Submit one test entry from the form and confirm that a fresh row
+ *  7.  Submit one test entry from the form and confirm that a fresh row
  *      appears carrying a code and a tick.
+ *
+ *  This script may be installed before the new form is put online. Entries
+ *  arriving from the present form carry no code, and are recorded as before
+ *  with the two new columns left empty.
  *
  * ----------------------------------------------------------------------------
  *  A NOTE ON AN EXISTING SHEET
@@ -64,6 +92,19 @@
 
 /** Exact name of the tab that stores the entries. */
 var SHEET_NAME = 'Sheet1';
+
+/**
+ * Leave this empty when the script is attached to the sheet, that is when it
+ * was opened through Extensions > Apps Script from within the sheet itself.
+ *
+ * Fill it in only when the script stands on its own, separate from any sheet.
+ * The value is the long identifier in the middle of the sheet's own address:
+ *   https://docs.google.com/spreadsheets/d/THIS_PART_HERE/edit
+ *
+ * If you are unsure which of the two you have, leave it empty, run
+ * checkSetup() from the editor, and it will tell you.
+ */
+var SPREADSHEET_ID = '';
 
 /** Time zone used for the Timestamp column. */
 var TIME_ZONE = 'Asia/Karachi';
@@ -214,8 +255,21 @@ function handleSubmission(e) {
  *  SHEET HANDLING
  * ========================================================================== */
 
-function getSheet() {
+function getSpreadsheet() {
+  if (SPREADSHEET_ID) return SpreadsheetApp.openById(SPREADSHEET_ID);
+
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    throw new Error(
+      'No sheet is attached to this script. Either open the script from ' +
+      'within the sheet through Extensions > Apps Script, or put the ' +
+      "sheet's identifier into SPREADSHEET_ID at the top of this file.");
+  }
+  return ss;
+}
+
+function getSheet() {
+  var ss = getSpreadsheet();
   var sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) sheet = ss.getSheets()[0];
   if (!sheet) sheet = ss.insertSheet(SHEET_NAME);
@@ -359,6 +413,60 @@ function buildValues(params) {
     'Comments'             : get('comments')
   };
 }
+
+/* ==========================================================================
+ *  SETTING UP
+ * ========================================================================== */
+
+/**
+ * Run this from the editor, by choosing checkSetup in the function list and
+ * pressing Run, before deploying anything. It writes nothing. It reports which
+ * sheet the script can reach, which tab it will write to, and whether the two
+ * new columns are in place. Read the outcome under View > Logs.
+ */
+function checkSetup() {
+  var lines = [];
+  try {
+    var ss = getSpreadsheet();
+    lines.push('Spreadsheet : ' + ss.getName());
+    lines.push('Address     : ' + ss.getUrl());
+    lines.push('Attached    : ' + (SPREADSHEET_ID ? 'no, reached by SPREADSHEET_ID'
+                                                  : 'yes, this script belongs to the sheet'));
+
+    var names = [];
+    var tabs = ss.getSheets();
+    for (var t = 0; t < tabs.length; t++) names.push(tabs[t].getName());
+    lines.push('Tabs present: ' + names.join(', '));
+
+    var sheet = getSheet();
+    lines.push('Writing to  : ' + sheet.getName() +
+               (sheet.getName() === SHEET_NAME ? '' : '   (SHEET_NAME says "' + SHEET_NAME + '", which was not found)'));
+    lines.push('Rows in use : ' + sheet.getLastRow());
+
+    var lastCol = sheet.getLastColumn();
+    var headers = [];
+    if (lastCol > 0) {
+      var raw = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+      for (var i = 0; i < raw.length; i++) headers.push(String(raw[i]).trim());
+    }
+    lines.push('Headings    : ' + (headers.length ? headers.join(' | ') : 'none, they will be written on the first entry'));
+
+    var missing = [];
+    for (var j = 0; j < COLUMN_ORDER.length; j++) {
+      if (headers.length && headers.indexOf(COLUMN_ORDER[j]) === -1) missing.push(COLUMN_ORDER[j]);
+    }
+    lines.push('To be added : ' + (missing.length ? missing.join(' | ') : 'nothing, every heading is already present'));
+    lines.push('Check char  : a specimen code verifies as ' + PFRVERIFY('PFR-260903-JPAH-B') + ' (a tick is expected)');
+    lines.push('');
+    lines.push('Setup looks sound. Deploy > Manage deployments > New version.');
+  } catch (err) {
+    lines.push('PROBLEM: ' + err.message);
+  }
+  var out = lines.join('\n');
+  Logger.log(out);
+  return out;
+}
+
 
 function reply(payload) {
   return ContentService
