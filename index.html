@@ -9,7 +9,7 @@
   <meta property="og:url" content="https://fia-jiap.github.io/passenger-facilitation-form/">
   <meta property="og:type" content="website">
   <title>Passenger Facilitation Request Form</title>
-  <meta name="application-version" content="1.4">
+  <meta name="application-version" content="1.5">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -580,7 +580,7 @@
   <div class="form-footer">
     Federal Investigation Agency &mdash; Immigration & Anti-Human Smuggling Wing, JIAP, Karachi
     <div class="credit">Created by: Asad Ali Sodhar, AD, FIA, JIAP, Karachi.</div>
-    <div class="credit">Version 1.4</div>
+    <div class="credit">Version 1.5</div>
   </div>
 </div>
 
@@ -1143,9 +1143,9 @@
     var heading = code
       ? 'Request Code: ' + code
       : 'Request Code: not issued, the register could not be reached';
-    var msg = '*' + escapeWa(d.travel).toUpperCase() + ' (' + heading + ')*\n\n';
-
-    msg += '*PRIMARY PASSENGER INFORMATION*\n';
+    // The opening line serves as the heading of the passenger's own
+    // particulars, with the rule beneath it as under every other heading.
+    var msg = '*' + escapeWa(d.travel).toUpperCase() + ' (' + heading + ')*\n';
     msg += RULE + '\n';
     msg += '*Name:* ' + escapeWa(d.firstName) + ' ' + escapeWa(d.lastName) + '\n';
     msg += '*Age:* ' + escapeWa(d.paxAge) + '\n';
@@ -1182,9 +1182,8 @@
     }
 
     if (d.accompanying.length > 0) {
-      msg += '*ACCOMPANYING PASSENGERS*\n';
-      msg += RULE + '\n';
-      msg += '*Total:* ' + d.accompanying.length + '\n';
+      msg += '*Accompanying passengers (' + d.accompanying.length + ')*\n';
+      msg += RULE + '\n\n';
       for (var k = 0; k < d.accompanying.length; k++) {
         msg += (k + 1) + '. ' + escapeWa(d.accompanying[k].name) +
                ' (Age: ' + escapeWa(d.accompanying[k].age) + ', ' +
