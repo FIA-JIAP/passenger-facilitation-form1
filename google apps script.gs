@@ -5,33 +5,104 @@
  *  Immigration & Anti-Human Smuggling Wing, Jinnah International Airport,
  *  Karachi.
  *
- *  Companion script for index.html, form version 1.2.
+ *  Companion script for index.html, form version 1.3.
  * ============================================================================
  *
- *  WHAT IS NEW IN THIS VERSION
+ *  WHAT VERSION 1.3 CHANGES
  *
- *  Two columns have been introduced at the front of the sheet:
+ *  1.  The script now answers the form.
  *
- *    "Request Code"    the unique code that the form generated for that
- *                      submission. The same code is printed at the head of
- *                      the WhatsApp message, which allows the receiving
- *                      officer to match a message against this record.
+ *      Until now the form spoke and this script listened. Nothing came back,
+ *      so the applicant's browser had no way of knowing whether the entry had
+ *      in fact been recorded. The script now returns its answer to the form,
+ *      which waits for it before allowing the WhatsApp message to be composed.
  *
- *    "Code Verified"   filled in automatically by this script. Every code
- *                      carries a check character. The script recomputes that
- *                      character on arrival and enters a tick when it agrees
- *                      and a cross when it does not. A code that has been
- *                      typed by hand or altered in transit will therefore
- *                      not tick.
+ *  2.  The register carries a serial number, and the code carries the same
+ *      number.
  *
- *  A code that reaches the officer on WhatsApp but is absent from this sheet
- *  did not come from the form at all, and should be treated accordingly.
+ *      Every entry is allotted a serial the moment it is recorded. The code
+ *      issued for that entry contains the serial in the middle:
+ *
+ *              PFR-260904-0147-8T2
+ *                     |     |    |
+ *                     |     |    check group
+ *                     |     serial number 147 in the register
+ *                     date on which the entry was recorded
+ *
+ *      A message quoting code PFR-260904-0147-8T2 is therefore a message
+ *      about serial 147, and the officer has only to look at serial 147 to
+ *      see what was actually submitted.
+ *
+ *  3.  The code is issued here and no longer by the form.
+ *
+ *      In version 1.2 the code was worked out inside index.html, which anyone
+ *      may read, so a code could be manufactured without the form ever being
+ *      used. The code is now composed by this script alone, from a secret held
+ *      in this project and written nowhere else. A code that this script did
+ *      not issue is a code that does not appear in the register.
+ *
+ *  4.  Repeat submissions are turned away.
+ *
+ *      An entry bearing the same passenger, telephone number and flight as one
+ *      already recorded within the last twelve hours is not entered a second
+ *      time. The form is told that the request already stands and is given the
+ *      earlier code, so the applicant may send that message instead of raising
+ *      a fresh request.
+ *
+ *  5.  The address of the sender is recorded where the browser can supply it,
+ *      and a limit is placed on the number of entries accepted from one
+ *      address in an hour.
+ *
+ *  Entries arriving from an older copy of the form continue to be recorded.
+ *  They carry no serial and their codes are checked against the older rule.
+ *
+ * ----------------------------------------------------------------------------
+ *  HOW A WHATSAPP MESSAGE IS NOW VERIFIED
+ *
+ *  A message reaches the officer quoting a code. Three questions settle it.
+ *
+ *    Is the code in the register?
+ *        Search the Request Code column. A code that is not there was never
+ *        issued, and the message did not come from the form.
+ *
+ *    Does the serial in the code lead to the same particulars?
+ *        The middle group of the code is the serial. Read that row. If the
+ *        message says something the row does not, the message has been edited
+ *        since it was submitted.
+ *
+ *    Does the check group hold?
+ *        Enter  =PFRVERIFY("PFR-260904-0147-8T2")  in any spare cell. A tick
+ *        means this script issued the code. A cross means it did not.
+ *
+ *  Where NOTIFY_EMAIL is filled in, the officer also receives a notice at the
+ *  moment of recording, composed by this script on your own Google account.
+ *  No applicant can bring such a notice into being and none can alter one
+ *  after it has arrived.
+ *
+ *  It should be understood that this establishes that a request passed through
+ *  the form. It cannot establish that the particulars given were truthful,
+ *  which no arrangement of this kind can.
+ *
+ * ----------------------------------------------------------------------------
+ *  THE SECRET
+ *
+ *  On first use the script makes a secret of its own and keeps it in this
+ *  project under the name PFR_SALT. It is never sent to the browser and never
+ *  appears in the register. The check group of every code is derived from it.
+ *
+ *  Should that property ever be deleted, a fresh secret is made and codes
+ *  issued earlier will no longer verify. The codes themselves remain in the
+ *  register and the register remains the record, but PFRVERIFY will report a
+ *  cross against them. Do not delete it.
+ *
+ *  Project Settings, in the left hand panel of the editor, is where the script
+ *  properties may be seen.
  *
  * ----------------------------------------------------------------------------
  *  FINDING THE EXISTING PROJECT
  *
  *  The form sends its entries to this deployment:
- *    AKfycbyLUWCyd-5fzHuShdonzF4bOUxLSUUIVasdXQ8edNmkdQe00SwgxWazFQa2oZPpxCivZw
+ *    AKfycbyCnSw9AP-ZJSXUYHiTLrYuVWEk8QOV2nm40TL5zJpMjbBKuDrvuiPg1s0yMxKcz4Ua
  *
  *  Either route below will reach the project that owns it.
  *
@@ -51,56 +122,6 @@
  *  AKfycb... string given above.
  *
  * ----------------------------------------------------------------------------
- *  NOTICE OF A RECORDED ENTRY
- *
- *  Put the officer's address into NOTIFY_EMAIL and he will be sent the
- *  particulars of every entry the moment it is recorded, laid out as they
- *  were submitted.
- *
- *  This is what answers the question of whether a WhatsApp message can be
- *  trusted. The notice is composed by this script on your own Google account
- *  and not by the applicant, so no applicant can bring one into being and
- *  none can alter one once it has arrived.
- *
- *    a WhatsApp message whose code matches no notice
- *        the form was never used
- *    a WhatsApp message whose code matches a notice saying something else
- *        the message has been edited since it was submitted
- *
- *  Nothing here has to be worked out, looked up or decoded, so there is no
- *  method for anyone to study and defeat.
- *
- *  It should be understood, though, that this proves a request passed through
- *  the form. It cannot show that the particulars given were truthful, which
- *  no arrangement of this kind can.
- *
- *  Run sendTestNotice from the editor to see what the officer will receive.
- *  A consumer Google account allows a hundred such notices a day.
- *
- * ----------------------------------------------------------------------------
- *  COLLECTING INTO A FRESH SPREADSHEET
- *
- *  Where the entries are to be gathered in a new spreadsheet, leaving the
- *  older records undisturbed, follow this order. The deployment address stays
- *  as it is, so index.html needs no alteration.
- *
- *  1.  Open the existing project by either route given above and paste this
- *      file in, as at Installation below.
- *  2.  Choose createCollectionSheet in the function list and press Run.
- *      Grant the permissions it asks for. It makes a new spreadsheet at the
- *      top level of your Drive, lays out the headings, and prints the
- *      identifier in the Execution log panel below the editor.
- *  3.  Copy that identifier into SPREADSHEET_ID at the top of this file and
- *      save.
- *  4.  Run checkSetup and read the outcome. It should name the new
- *      spreadsheet and report that every heading is already present.
- *  5.  Put it into service, as at step 6 below.
- *
- *  Should you prefer to make the spreadsheet yourself, create it in Drive,
- *  put its identifier into SPREADSHEET_ID, and run prepareSheet instead of
- *  createCollectionSheet.
- *
- * ----------------------------------------------------------------------------
  *  INSTALLATION
  *
  *  1.  Open the project as described above.
@@ -109,48 +130,67 @@
  *  3.  Remove the existing contents of the editor and paste this file in.
  *  4.  Set SHEET_NAME to the exact name of the tab that holds the data, and
  *      SPREADSHEET_ID only if the project is not attached to a sheet.
+ *      Put the officer's address into NOTIFY_EMAIL.
  *  5.  Choose checkSetup in the function list and press Run. Grant the
- *      permissions it asks for. Read the outcome in the Execution log
- *      panel below the editor and put right anything it reports before
- *      going further. It writes nothing.
- *  6.  Put the script into service. Which of the two applies depends on
- *      whether this project has been deployed before.
+ *      permissions it asks for. Read the outcome in the Execution log panel
+ *      below the editor and put right anything it reports before going on.
+ *      It writes nothing to the register.
+ *  6.  Put the script into service.
+ *
+ *      Already deployed, which is the case for the project the form presently
+ *      reaches:
+ *        Deploy  >  Manage deployments  >  the pencil icon  >
+ *        Version: New version  >  Deploy.
+ *        Edit the existing deployment rather than making another, so that the
+ *        address already written into index.html goes on working.
  *
  *      Never deployed, as with a project newly made at script.google.com:
  *        Deploy  >  New deployment  >  the gear icon  >  Web app.
  *        Execute as: Me.      Who has access: Anyone.
- *        This yields a fresh web app address ending in /exec, which must
- *        then be written into GOOGLE_SCRIPT_URL in index.html.
+ *        This yields a fresh address ending in /exec, which must then be
+ *        written into GOOGLE_SCRIPT_URL in index.html.
  *
- *      Already deployed, as with the project the form presently reaches:
- *        Deploy  >  Manage deployments  >  the pencil icon  >
- *        Version: New version  >  Deploy.
- *        Edit the existing deployment rather than making another, so that
- *        the address already in index.html goes on working.
+ *      Take care to choose Anyone and not "Anyone with Google account". The
+ *      form submits without signing in, so the stricter setting would turn
+ *      every submission away.
  *
- *      Take care to choose Anyone and not "Anyone with Google account".
- *      The form sends its entries without signing in, so the stricter
- *      setting would turn every submission away.
+ *  7.  IMPORTANT. This version must be deployed before the new index.html is
+ *      put online, and not after. The new form waits for an answer from the
+ *      script, and only this version answers.
  *
- *  7.  Submit one test entry from the form and confirm that a fresh row
- *      appears carrying a code and a tick.
+ *  8.  Submit one test entry from the form and confirm that a fresh row
+ *      appears carrying a serial, a code and a tick, and that the code shown
+ *      on the screen is the same code as in the row.
  *
- *  This script may be installed before the new form is put online. Entries
- *  arriving from the present form carry no code, and are recorded as before
- *  with the two new columns left empty.
+ * ----------------------------------------------------------------------------
+ *  COLLECTING INTO A FRESH SPREADSHEET
+ *
+ *  Where the entries are to be gathered in a new spreadsheet, leaving the
+ *  older records undisturbed, follow this order. The deployment address stays
+ *  as it is, so index.html needs no alteration.
+ *
+ *  1.  Open the existing project and paste this file in, as above.
+ *  2.  Choose createCollectionSheet in the function list and press Run. It
+ *      makes a new spreadsheet at the top level of your Drive, lays out the
+ *      headings, and prints the identifier in the Execution log panel.
+ *  3.  Copy that identifier into SPREADSHEET_ID at the top of this file and
+ *      save.
+ *  4.  Run resetSerialCounter so that the new register begins at serial 1.
+ *  5.  Run checkSetup and read the outcome.
+ *  6.  Put it into service, as at step 6 above.
  *
  * ----------------------------------------------------------------------------
  *  A NOTE ON AN EXISTING SHEET
  *
  *  Nothing already recorded is disturbed. On each submission the script reads
  *  the header row, adds any of the headings listed in COLUMN_ORDER that are
- *  not already present, and writes each value beneath its own heading.
+ *  not already present, and writes each value beneath its own heading. The
+ *  three headings new to this version, Serial, IP Address and Submission ID,
+ *  are added at the end of the existing headings rather than in the position
+ *  shown below, which is the position used only when a fresh tab is laid out.
  *
- *  If the sheet already carries headings worded differently from the list
- *  below, those older columns will simply stop receiving values and new ones
- *  will be added alongside. Where that is not desired, either rename the
- *  existing headings to match COLUMN_ORDER exactly, or point SHEET_NAME at a
- *  fresh tab and let the script lay out the headings itself.
+ *  The first serial allotted on an existing sheet continues from the number of
+ *  rows already present, so that serial and row remain in step.
  * ============================================================================
  */
 
@@ -175,27 +215,43 @@ var SHEET_NAME = 'Sheet1';
  */
 var SPREADSHEET_ID = '';
 
-/** Time zone used for the Timestamp column. */
+/** Time zone used for the Timestamp column and for the date part of a code. */
 var TIME_ZONE = 'Asia/Karachi';
 
 /**
- * Address to be notified the moment a genuine entry is recorded. Ordinarily
- * the officer who receives the WhatsApp messages. Several addresses may be
- * given, separated by commas.
- *
- * This notice is the safeguard against an edited WhatsApp message. It is
- * composed by this script on your own Google account, not by the applicant,
- * so no applicant can bring one into being and none can alter one after it
- * has arrived. A WhatsApp message whose code matches no notice never came
- * from the form. One that matches a notice saying something different has
- * been edited since it was submitted.
- *
- * Leave it empty to send no notices at all.
+ * Address to be notified the moment an entry is recorded. Ordinarily the
+ * officer who receives the WhatsApp messages. Several addresses may be given,
+ * separated by commas. Leave it empty to send no notices at all.
  */
 var NOTIFY_EMAIL = '';
 
 /** Name the notice is shown as coming from. */
 var NOTIFY_SENDER_NAME = 'Passenger Facilitation Request Form';
+
+/**
+ * A request bearing the same passenger, telephone number and flight as one
+ * already recorded within this many hours is treated as the same request and
+ * is not entered again. Set it to 0 to accept every submission.
+ */
+var DUPLICATE_WINDOW_HOURS = 12;
+
+/**
+ * Greatest number of entries accepted in one hour from a single address.
+ * Set it to 0 to place no limit.
+ *
+ * The address is supplied by the browser and may therefore be withheld or
+ * altered by a determined person. It is a restraint on repeated submission
+ * and not a means of identification. The particulars check above is the one
+ * that cannot be evaded from the browser.
+ */
+var IP_LIMIT_PER_HOUR = 5;
+
+/**
+ * Number of rows at the foot of the register examined when looking for a
+ * repeat. Raising it slows every submission a little; lowering it allows a
+ * repeat to slip through on a very busy day.
+ */
+var ROWS_EXAMINED = 600;
 
 /**
  * Columns held as plain text, so that Google Sheets records exactly what was
@@ -205,11 +261,12 @@ var NOTIFY_SENDER_NAME = 'Passenger Facilitation Request Form';
  */
 var TEXT_COLUMNS = [
   'Timestamp', 'Request Code', 'Phone', 'Reference Contact', 'PRO Contact',
-  'Flight Number', 'Flight Date', 'Flight Time'
+  'Flight Number', 'Flight Date', 'Flight Time', 'IP Address', 'Submission ID'
 ];
 
-/** Column headings, in the order in which they are laid out. */
+/** Column headings, in the order in which a fresh tab is laid out. */
 var COLUMN_ORDER = [
+  'Serial',
   'Timestamp',
   'Request Code',
   'Code Verified',
@@ -235,105 +292,222 @@ var COLUMN_ORDER = [
   'PRO Department',
   'Accompanying Count',
   'Accompanying Details',
-  'Comments'
+  'Comments',
+  'IP Address',
+  'Submission ID'
 ];
+
+/** Names of the script properties this file keeps. */
+var PROP_SALT   = 'PFR_SALT';
+var PROP_SERIAL = 'PFR_LAST_SERIAL';
 
 
 /* ==========================================================================
  *  REQUEST CODE
  *
- *  CODE_CHARS, CODE_WEIGHTS and codeCheckChar() are reproduced character for
- *  character from index.html. Should either copy be altered, codes issued by
- *  the form will cease to verify here. Amend both together or neither.
+ *  Shape issued by this version:   PFR-260904-0147-8T2
+ *      260904   date on which the entry was recorded, Karachi time
+ *      0147     serial number of the entry in the register
+ *      8T2      check group, derived from the two parts above and from the
+ *               secret held in this project
+ *
+ *  Shape issued by version 1.2, still recognised so that older rows verify:
+ *                                  PFR-250903-K7M4-9
  * ========================================================================== */
 
-/** Alphabet of the random part and of the check character. 0, 1, I, L, O and
- *  U are left out so that a code read off a message cannot be misread. */
+/** Alphabet of the check group. 0, 1, I, L, O and U are left out so that a
+ *  code read off a message cannot be misread. */
 var CODE_CHARS = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
 
-/** Position weights. Every one of them is prime to 30, the size of the
- *  alphabet, so that any single wrong character upsets the check character. */
-var CODE_WEIGHTS = [1, 17, 13, 11, 7, 23, 19, 17, 1, 29];
-
-/** Pattern of a well formed code, for example PFR-250903-K7M4-9. */
+/** Codes issued by this version. */
 var CODE_PATTERN =
+  /^PFR-(\d{6})-(\d{4,})-([23456789ABCDEFGHJKMNPQRSTVWXYZ]{3})$/;
+
+/** Codes issued by version 1.2. */
+var LEGACY_PATTERN =
   /^PFR-(\d{6})-([23456789ABCDEFGHJKMNPQRSTVWXYZ]{4})-([23456789ABCDEFGHJKMNPQRSTVWXYZ])$/;
 
+/** Position weights used by version 1.2. Retained only so that codes issued
+ *  by that version continue to verify. */
+var LEGACY_WEIGHTS = [1, 17, 13, 11, 7, 23, 19, 17, 1, 29];
+
 /**
- * Recomputes the check character from the date part ("250903") and the random
- * part ("K7M4") of a code.
+ * The secret from which every check group is derived. It is made on first use
+ * and kept in this project alone. See THE SECRET in the notes above.
  */
-function codeCheckChar(datePart, randomPart) {
+function getSalt() {
+  var props = PropertiesService.getScriptProperties();
+  var salt = props.getProperty(PROP_SALT);
+  if (!salt) {
+    salt = Utilities.getUuid() + '.' + Utilities.getUuid();
+    props.setProperty(PROP_SALT, salt);
+  }
+  return salt;
+}
+
+/** Serial padded to four figures, and left longer once it outgrows four. */
+function padSerial(n) {
+  var s = String(n);
+  while (s.length < 4) s = '0' + s;
+  return s;
+}
+
+/**
+ * The three character check group. Twenty seven thousand groups are possible,
+ * so a code invented by hand is all but certain to fail PFRVERIFY.
+ */
+function codeCheckGroup(datePart, serialPart) {
+  var raw = Utilities.computeHmacSha256Signature(datePart + ':' + serialPart, getSalt());
+  var out = '';
+  for (var i = 0; i < 3; i++) {
+    var hi = (raw[2 * i] + 256) % 256;
+    var lo = (raw[2 * i + 1] + 256) % 256;
+    out += CODE_CHARS.charAt((hi * 256 + lo) % CODE_CHARS.length);
+  }
+  return out;
+}
+
+/** Composes the code for a given serial. */
+function mintCode(datePart, serial) {
+  var serialPart = padSerial(serial);
+  return 'PFR-' + datePart + '-' + serialPart + '-' + codeCheckGroup(datePart, serialPart);
+}
+
+/** The check character used by version 1.2, kept for older rows alone. */
+function legacyCheckChar(datePart, randomPart) {
   var sum = 0, i;
   for (i = 0; i < datePart.length; i++) {
-    sum += (datePart.charCodeAt(i) - 48) * CODE_WEIGHTS[i];
+    sum += (datePart.charCodeAt(i) - 48) * LEGACY_WEIGHTS[i];
   }
   for (i = 0; i < randomPart.length; i++) {
-    sum += CODE_CHARS.indexOf(randomPart.charAt(i)) * CODE_WEIGHTS[datePart.length + i];
+    sum += CODE_CHARS.indexOf(randomPart.charAt(i)) * LEGACY_WEIGHTS[datePart.length + i];
   }
   return CODE_CHARS.charAt(sum % CODE_CHARS.length);
 }
 
-/** True when the code is well formed and its check character agrees. */
+/** True when the code is well formed and its check group or check character
+ *  agrees. Codes of either version are accepted. */
 function isCodeValid(code) {
+  var text = String(code == null ? '' : code).trim().toUpperCase();
+
+  var m = CODE_PATTERN.exec(text);
+  if (m) return codeCheckGroup(m[1], m[2]) === m[3];
+
+  var legacy = LEGACY_PATTERN.exec(text);
+  if (legacy) return legacyCheckChar(legacy[1], legacy[2]) === legacy[3];
+
+  return false;
+}
+
+/** The serial named by a code, or an empty string where the code carries none. */
+function serialFromCode(code) {
   var m = CODE_PATTERN.exec(String(code == null ? '' : code).trim().toUpperCase());
-  if (!m) return false;
-  return codeCheckChar(m[1], m[2]) === m[3];
+  return m ? String(parseInt(m[2], 10)) : '';
 }
 
 /**
  * Custom sheet function, for checking a code taken off a WhatsApp message.
- * Enter  =PFRVERIFY("PFR-250903-K7M4-9")  in any cell.
+ * Enter  =PFRVERIFY("PFR-260904-0147-8T2")  in any spare cell.
  */
 function PFRVERIFY(code) {
   return isCodeValid(code) ? '✔' : '✘';
+}
+
+/**
+ * Custom sheet function returning the serial named by a code, so that the row
+ * may be found at once. Enter  =PFRSERIAL("PFR-260904-0147-8T2").
+ */
+function PFRSERIAL(code) {
+  return serialFromCode(code) || '';
 }
 
 
 /* ==========================================================================
  *  WEB APP ENTRY POINTS
  *
- *  The form reaches this script by navigator.sendBeacon (a POST), by fetch
- *  or, on older browsers, by an image request (both GET). All three carry
- *  their values in the query string, so both handlers share one routine.
+ *  The form reaches this script in one of three ways, in this order of
+ *  preference:
+ *
+ *    a.  a script element carrying a callback name, which is how the form
+ *        reads the answer without the browser's cross origin rules standing
+ *        in the way;
+ *    b.  a POST carrying the values as plain text, used where the values are
+ *        too long for a query string;
+ *    c.  navigator.sendBeacon, which records the entry but reads no answer.
+ *        This is used only where the first two have failed.
+ *
+ *  All three are served by one routine.
  * ========================================================================== */
 
 function doGet(e)  { return handleSubmission(e); }
 function doPost(e) { return handleSubmission(e); }
 
 function handleSubmission(e) {
-  var params = (e && e.parameter) ? e.parameter : {};
+  var params   = readParams(e);
+  var callback = jsonpCallback(params);
 
   // The web app address opened in a browser carries no values. Report the
   // service instead of recording an empty row.
-  if (!params.requestCode && !params.firstName) {
+  if (!params.firstName && !params.submissionId) {
     return reply({
       ok: true,
       service: 'Passenger Facilitation Request receiver',
-      version: '1.2'
-    });
+      version: '1.3'
+    }, callback);
   }
 
   var lock = LockService.getScriptLock();
   try {
     lock.waitLock(30000);
   } catch (err) {
-    return reply({ ok: false, error: 'The sheet was busy. Please submit again.' });
+    return reply({
+      ok: false,
+      error: 'The register was busy. Please submit again in a moment.'
+    }, callback);
   }
 
   try {
     var sheet   = getSheet();
     var headers = ensureHeaders(sheet);
-    var values  = buildValues(params);
-    var code    = values['Request Code'];
+    var recent  = recentRows(sheet, headers, ROWS_EXAMINED);
+    var now     = new Date();
 
-    // Guard against one and the same submission arriving twice. A record is
-    // set aside only when an existing row carries both the same code and the
-    // same passenger and flight, so that two separate requests which happen
-    // to draw the same code on one day are still both entered.
-    if (isRepeatOfExistingRow(sheet, headers, values)) {
-      return reply({ ok: true, duplicate: true, code: code });
+    // The same submission arriving twice, which happens when the form retries
+    // after a slow answer. The earlier entry is returned rather than a new one
+    // being made, so a retry can never double the register.
+    var submissionId = String(params.submissionId || '').trim();
+    if (submissionId) {
+      var already = findBySubmissionId(recent, submissionId);
+      if (already) return reply(existingEntryReply(already, 'same-submission'), callback);
     }
+
+    var values = buildValues(params);
+
+    // A fresh request bearing particulars already recorded within the window.
+    var repeat = findRecentDuplicate(recent, values, now);
+    if (repeat) return reply(existingEntryReply(repeat, 'same-details'), callback);
+
+    // Too many entries from one address within the hour.
+    var address = values['IP Address'];
+    if (address && IP_LIMIT_PER_HOUR > 0 &&
+        countFromAddress(recent, address, now) >= IP_LIMIT_PER_HOUR) {
+      return reply({
+        ok: false,
+        throttled: true,
+        error: 'Several requests have already been received from this ' +
+               'connection within the hour. Please try again later, or ' +
+               'telephone the facilitation desk.'
+      }, callback);
+    }
+
+    // Serial, code and the row itself.
+    var datePart = Utilities.formatDate(now, TIME_ZONE, 'yyMMdd');
+    var serial   = nextSerial(sheet, headers);
+    var code     = mintCode(datePart, serial);
+
+    values['Serial']        = serial;
+    values['Request Code']  = code;
+    values['Code Verified'] = isCodeValid(code) ? '✔' : '✘';
 
     var row = [];
     for (var i = 0; i < headers.length; i++) {
@@ -350,12 +524,121 @@ function handleSubmission(e) {
       Logger.log('Notice not sent: ' + mailErr);
     }
 
-    return reply({ ok: true, code: code, verified: values['Code Verified'], notified: notified });
+    return reply({
+      ok: true,
+      recorded: true,
+      serial: serial,
+      code: code,
+      verified: values['Code Verified'],
+      recordedAt: values['Timestamp'],
+      notified: notified
+    }, callback);
+
   } catch (err) {
-    return reply({ ok: false, error: String(err) });
+    return reply({ ok: false, error: String(err && err.message ? err.message : err) }, callback);
   } finally {
     try { lock.releaseLock(); } catch (ignored) {}
   }
+}
+
+/** Values sent in the query string, and those sent as a plain text body. */
+function readParams(e) {
+  var params = {}, key;
+  if (e && e.parameter) {
+    for (key in e.parameter) {
+      if (Object.prototype.hasOwnProperty.call(e.parameter, key)) params[key] = e.parameter[key];
+    }
+  }
+  if (e && e.postData && e.postData.contents) {
+    try {
+      var body = JSON.parse(e.postData.contents);
+      if (body && typeof body === 'object') {
+        for (key in body) {
+          if (Object.prototype.hasOwnProperty.call(body, key)) params[key] = body[key];
+        }
+      }
+    } catch (ignored) {}
+  }
+  return params;
+}
+
+/**
+ * The callback name the form asks the answer to be wrapped in. Only plain
+ * names are accepted, so that nothing of the caller's choosing can be written
+ * into the reply.
+ */
+function jsonpCallback(params) {
+  var name = String(params.callback || '').trim();
+  return /^[A-Za-z0-9_$]{1,64}$/.test(name) ? name : '';
+}
+
+/** The answer, wrapped in the callback where one was asked for. */
+function reply(payload, callback) {
+  var json = JSON.stringify(payload);
+  if (callback) {
+    return ContentService
+      .createTextOutput(callback + '(' + json + ');')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService
+    .createTextOutput(json)
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+/** The answer returned when an entry already stands for this request. */
+function existingEntryReply(rowValues, reason) {
+  return {
+    ok: true,
+    duplicate: true,
+    reason: reason,
+    serial: rowValues['Serial'] === '' || rowValues['Serial'] === undefined
+              ? '' : rowValues['Serial'],
+    code: String(rowValues['Request Code'] || ''),
+    recordedAt: String(rowValues['Timestamp'] || ''),
+    error: 'This request has already been recorded.'
+  };
+}
+
+
+/* ==========================================================================
+ *  SERIAL NUMBERS
+ * ========================================================================== */
+
+/**
+ * Allots the next serial. The last number issued is kept in this project, so
+ * that a serial is never reused even where rows have since been deleted from
+ * the register. Where the number has not yet been kept, it is taken from the
+ * register itself, so that an existing sheet carries on from where it stood.
+ *
+ * This is called under the script lock and is therefore safe against two
+ * submissions arriving at the same instant.
+ */
+function nextSerial(sheet, headers) {
+  var props = PropertiesService.getScriptProperties();
+  var last  = parseInt(props.getProperty(PROP_SERIAL), 10);
+  if (!(last > 0)) last = highestSerialOnRecord(sheet, headers);
+  var next = last + 1;
+  props.setProperty(PROP_SERIAL, String(next));
+  return next;
+}
+
+/** The greatest serial in the register, or the number of rows where the
+ *  register predates this version and carries no serials. */
+function highestSerialOnRecord(sheet, headers) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+
+  var entries = lastRow - 1;
+  var col = headers.indexOf('Serial') + 1;
+  if (col < 1) return entries;
+
+  var values = sheet.getRange(2, col, entries, 1).getValues();
+  var highest = 0;
+  for (var i = 0; i < values.length; i++) {
+    var n = parseInt(values[i][0], 10);
+    if (n > highest) highest = n;
+  }
+  return highest > entries ? highest : entries;
 }
 
 
@@ -439,33 +722,75 @@ function formatHeaderRow(sheet, columnCount) {
 }
 
 /**
- * True when the sheet already holds this very submission, that is a row
- * bearing the same code and the same passenger and flight. Where the code
- * matches but the particulars differ, the two are separate requests and this
- * returns false so that both are entered.
+ * The last few rows of the register, each returned as an object keyed by
+ * heading. Reading them once in a single call keeps a submission quick, and
+ * every check below works from this one reading.
  */
-function isRepeatOfExistingRow(sheet, headers, values) {
-  var code = values['Request Code'];
-  if (!code) return false;
-
-  var codeCol = headers.indexOf('Request Code') + 1;
-  if (codeCol < 1) return false;
-
+function recentRows(sheet, headers, limit) {
   var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return false;
+  if (lastRow < 2) return [];
 
-  var recorded = sheet.getRange(2, codeCol, lastRow - 1, 1).getValues();
-  var wanted = identitySignature(values);
+  var entries = lastRow - 1;
+  var count   = entries < limit ? entries : limit;
+  var start   = lastRow - count + 1;
+  var values  = sheet.getRange(start, 1, count, headers.length).getValues();
 
-  for (var i = 0; i < recorded.length; i++) {
-    if (String(recorded[i][0]).trim().toUpperCase() !== code) continue;
-
-    var row = sheet.getRange(i + 2, 1, 1, headers.length).getValues()[0];
-    var existing = {};
-    for (var h = 0; h < headers.length; h++) existing[headers[h]] = row[h];
-    if (identitySignature(existing) === wanted) return true;
+  var rows = [];
+  for (var i = 0; i < values.length; i++) {
+    var record = {};
+    for (var h = 0; h < headers.length; h++) record[headers[h]] = values[i][h];
+    rows.push(record);
   }
-  return false;
+  return rows;
+}
+
+
+/* ==========================================================================
+ *  REPEAT SUBMISSIONS
+ * ========================================================================== */
+
+/** The row bearing this submission identifier, if the register holds one. */
+function findBySubmissionId(rows, submissionId) {
+  var wanted = String(submissionId).trim().toUpperCase();
+  for (var i = rows.length - 1; i >= 0; i--) {
+    if (String(rows[i]['Submission ID'] || '').trim().toUpperCase() === wanted) return rows[i];
+  }
+  return null;
+}
+
+/**
+ * The most recent row bearing the same passenger, telephone number and flight
+ * as the submission in hand, where that row was recorded within the window.
+ */
+function findRecentDuplicate(rows, values, now) {
+  if (!(DUPLICATE_WINDOW_HOURS > 0)) return null;
+
+  var wanted = identitySignature(values);
+  if (wanted.replace(/\|/g, '') === '') return null;
+
+  var window = DUPLICATE_WINDOW_HOURS * 3600000;
+  for (var i = rows.length - 1; i >= 0; i--) {
+    if (identitySignature(rows[i]) !== wanted) continue;
+    var when = parseStamp(rows[i]['Timestamp']);
+    if (!when) continue;
+    if (now.getTime() - when.getTime() <= window) return rows[i];
+  }
+  return null;
+}
+
+/** How many entries were accepted from this address within the last hour. */
+function countFromAddress(rows, address, now) {
+  var wanted = String(address).trim();
+  if (!wanted) return 0;
+
+  var count = 0;
+  for (var i = rows.length - 1; i >= 0; i--) {
+    if (String(rows[i]['IP Address'] || '').trim() !== wanted) continue;
+    var when = parseStamp(rows[i]['Timestamp']);
+    if (!when) continue;
+    if (now.getTime() - when.getTime() <= 3600000) count++;
+  }
+  return count;
 }
 
 /** Particulars by which one submission is told apart from another. */
@@ -477,6 +802,20 @@ function identitySignature(values) {
     parts.push(String(v === undefined || v === null ? '' : v).trim().toUpperCase());
   }
   return parts.join('|');
+}
+
+/** Reads back a Timestamp written by this script. Anything that cannot be
+ *  read is left out of the window checks rather than guessed at. */
+function parseStamp(v) {
+  if (v instanceof Date) return v;
+  var s = String(v === undefined || v === null ? '' : v).trim();
+  if (!s) return null;
+  try {
+    var d = Utilities.parseDate(s, TIME_ZONE, 'dd-MMM-yyyy HH:mm:ss');
+    return (d && !isNaN(d.getTime())) ? d : null;
+  } catch (err) {
+    return null;
+  }
 }
 
 
@@ -493,7 +832,7 @@ function sendNotice(values, sheet) {
 
   var code = values['Request Code'] || '(no code)';
   var name = ((values['First Name'] || '') + ' ' + (values['Last Name'] || '')).trim() || '(no name)';
-  var subject = code + '  |  ' + name + '  |  ' +
+  var subject = 'Sr. ' + (values['Serial'] || '?') + '  |  ' + code + '  |  ' + name + '  |  ' +
                 (values['Flight Number'] || '') + ', ' + (values['Flight Date'] || '') +
                 ' (' + (values['Arrival/Departure'] || '') + ')';
 
@@ -512,7 +851,7 @@ function sendNotice(values, sheet) {
   plain.push('');
   for (var i = 0; i < COLUMN_ORDER.length; i++) {
     var heading = COLUMN_ORDER[i];
-    if (heading === 'Code Verified') continue;
+    if (heading === 'Code Verified' || heading === 'Submission ID') continue;
     var v = values[heading];
     if (isBlankForNotice(heading, v)) continue;
     plain.push(pad(heading, 22) + ' : ' + v);
@@ -522,12 +861,10 @@ function sendNotice(values, sheet) {
   plain.push('');
   plain.push('Sheet: ' + sheet.getParent().getUrl());
 
-  var body = plain.join('\n');
-
   MailApp.sendEmail({
     to: NOTIFY_EMAIL,
     subject: subject,
-    body: body,
+    body: plain.join('\n'),
     htmlBody: noticeHtml(values, preamble, sheet),
     name: NOTIFY_SENDER_NAME
   });
@@ -565,10 +902,10 @@ function noticeHtml(values, preamble, sheet) {
   h.push('<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%">');
   for (var i = 0; i < COLUMN_ORDER.length; i++) {
     var heading = COLUMN_ORDER[i];
-    if (heading === 'Code Verified') continue;
+    if (heading === 'Code Verified' || heading === 'Submission ID') continue;
     var v = values[heading];
     if (isBlankForNotice(heading, v)) continue;
-    var emphasis = (heading === 'Request Code') ? 'font-weight:bold;' : '';
+    var emphasis = (heading === 'Request Code' || heading === 'Serial') ? 'font-weight:bold;' : '';
     h.push('<tr>' +
       '<td style="padding:6px 12px 6px 0;border-bottom:1px solid #e8ecf1;color:#6b7c8f;white-space:nowrap;vertical-align:top">' +
         escapeHtml(heading) + '</td>' +
@@ -593,12 +930,11 @@ function buildValues(params) {
     return (v === undefined || v === null) ? '' : String(v).trim();
   }
 
-  var code = get('requestCode').toUpperCase();
-
   return {
     'Timestamp'            : Utilities.formatDate(new Date(), TIME_ZONE, 'dd-MMM-yyyy HH:mm:ss'),
-    'Request Code'         : code,
-    'Code Verified'        : code ? (isCodeValid(code) ? '✔' : '✘') : '',
+    'Serial'               : '',
+    'Request Code'         : '',
+    'Code Verified'        : '',
     'First Name'           : get('firstName'),
     'Last Name'            : get('lastName'),
     'Age'                  : get('paxAge'),
@@ -621,21 +957,21 @@ function buildValues(params) {
     'PRO Department'       : get('proDepartment'),
     'Accompanying Count'   : get('accompanyingCount'),
     'Accompanying Details' : get('accompanyingDetails'),
-    'Comments'             : get('comments')
+    'Comments'             : get('comments'),
+    'IP Address'           : get('clientIp'),
+    'Submission ID'        : get('submissionId')
   };
 }
 
+
 /* ==========================================================================
- *  SETTING UP
+ *  SETTING UP AND CHECKING
  * ========================================================================== */
 
 /**
  * Creates a brand new spreadsheet for collecting the entries, lays out its
  * headings and reports its identifier. Run this once from the editor, then
  * copy the identifier it prints into SPREADSHEET_ID at the top of this file.
- *
- * The new file is placed at the top level of your Google Drive under the name
- * given below. Nothing already recorded elsewhere is touched.
  */
 function createCollectionSheet() {
   var ss = SpreadsheetApp.create('Passenger Facilitation Requests');
@@ -651,7 +987,8 @@ function createCollectionSheet() {
     'Identifier : ' + ss.getId(),
     '',
     'Now copy the identifier above into SPREADSHEET_ID at the top of this',
-    'file, save, and run checkSetup to confirm.'
+    'file, save, run resetSerialCounter so that the register begins at one,',
+    'and then run checkSetup to confirm.'
   ].join('\n');
   Logger.log(out);
   return out;
@@ -688,26 +1025,40 @@ function layOutSheet(sheet) {
   }
 
   var widths = {
-    'Timestamp': 165, 'Request Code': 155, 'Code Verified': 95,
+    'Serial': 70, 'Timestamp': 165, 'Request Code': 175, 'Code Verified': 95,
     'Email': 200, 'Department/Company': 200, 'Reference Person': 200,
-    'Accompanying Details': 320, 'Comments': 320
+    'Accompanying Details': 320, 'Comments': 320,
+    'IP Address': 130, 'Submission ID': 160
   };
   for (var j = 0; j < COLUMN_ORDER.length; j++) {
-    var w = widths[COLUMN_ORDER[j]] || 130;
-    sheet.setColumnWidth(j + 1, w);
+    sheet.setColumnWidth(j + 1, widths[COLUMN_ORDER[j]] || 130);
   }
 
-  var verified = COLUMN_ORDER.indexOf('Code Verified') + 1;
-  if (verified > 0) {
-    sheet.getRange(1, verified, rows, 1).setHorizontalAlignment('center');
+  var centred = ['Serial', 'Code Verified'];
+  for (var c = 0; c < centred.length; c++) {
+    var col = COLUMN_ORDER.indexOf(centred[c]) + 1;
+    if (col > 0) sheet.getRange(1, col, rows, 1).setHorizontalAlignment('center');
   }
 }
 
+/**
+ * Sets the serial counter back so that the next entry recorded takes serial
+ * one. Run this only on a register that is to begin afresh. It changes nothing
+ * already recorded.
+ */
+function resetSerialCounter() {
+  PropertiesService.getScriptProperties().deleteProperty(PROP_SERIAL);
+  var sheet = getSheet();
+  var headers = ensureHeaders(sheet);
+  var out = 'The serial counter has been cleared. The next entry will take serial ' +
+            (highestSerialOnRecord(sheet, headers) + 1) + '.';
+  Logger.log(out);
+  return out;
+}
 
 /**
  * Sends one specimen notice to NOTIFY_EMAIL so that you may see what the
- * officer will receive. Nothing is written to the register. Run it from the
- * editor after setting NOTIFY_EMAIL.
+ * officer will receive. Nothing is written to the register.
  */
 function sendTestNotice() {
   if (!NOTIFY_EMAIL) {
@@ -716,7 +1067,6 @@ function sendTestNotice() {
     return none;
   }
   var specimen = buildValues({
-    requestCode: 'PFR-260903-JPAH-B',
     firstName: 'SPECIMEN', lastName: 'ENTRY', paxAge: '41',
     email: 'specimen@example.com', phone: '+92 300 0000000',
     paxDesignation: 'Assistant Director', paxDepartment: 'FIA, JIAP, Karachi',
@@ -727,6 +1077,10 @@ function sendTestNotice() {
     accompanyingCount: '0',
     comments: 'This is a specimen notice. No entry has been recorded.'
   });
+  specimen['Serial'] = 147;
+  specimen['Request Code'] = mintCode(Utilities.formatDate(new Date(), TIME_ZONE, 'yyMMdd'), 147);
+  specimen['Code Verified'] = '✔';
+
   sendNotice(specimen, getSheet());
   var out = 'A specimen notice has been sent to ' + NOTIFY_EMAIL +
             '. Nothing was written to the register.';
@@ -736,9 +1090,8 @@ function sendTestNotice() {
 
 /**
  * Run this from the editor, by choosing checkSetup in the function list and
- * pressing Run, before deploying anything. It writes nothing. It reports which
- * sheet the script can reach, which tab it will write to, and whether the two
- * new columns are in place. Read the outcome in the Execution log panel below the editor.
+ * pressing Run, before deploying anything. It writes nothing to the register.
+ * Read the outcome in the Execution log panel below the editor.
  */
 function checkSetup() {
   var lines = [];
@@ -772,7 +1125,29 @@ function checkSetup() {
       if (headers.length && headers.indexOf(COLUMN_ORDER[j]) === -1) missing.push(COLUMN_ORDER[j]);
     }
     lines.push('To be added : ' + (missing.length ? missing.join(' | ') : 'nothing, every heading is already present'));
-    lines.push('Check char  : a specimen code verifies as ' + PFRVERIFY('PFR-260903-JPAH-B') + ' (a tick is expected)');
+
+    var props = PropertiesService.getScriptProperties();
+    var heldSalt = props.getProperty(PROP_SALT);
+    lines.push('Secret      : ' + (heldSalt ? 'in place, made earlier'
+                                            : 'not yet made, it will be made on the first entry'));
+
+    var kept = parseInt(props.getProperty(PROP_SERIAL), 10);
+    var nextUp = (kept > 0) ? kept + 1
+                            : highestSerialOnRecord(sheet, headers.length ? headers : COLUMN_ORDER) + 1;
+    lines.push('Next serial : ' + nextUp);
+
+    var specimen = mintCode(Utilities.formatDate(new Date(), TIME_ZONE, 'yyMMdd'), nextUp);
+    lines.push('Specimen    : ' + specimen + '  verifies as ' + PFRVERIFY(specimen) +
+               ' (a tick is expected)');
+    lines.push('Older codes : PFR-250903-K7M4-9 verifies as ' + PFRVERIFY('PFR-250903-K7M4-9') +
+               ' (a tick is expected, version 1.2 codes are still recognised)');
+
+    lines.push('Repeats     : the same passenger, telephone number and flight are refused ' +
+               (DUPLICATE_WINDOW_HOURS > 0 ? 'within ' + DUPLICATE_WINDOW_HOURS + ' hours'
+                                           : 'never, DUPLICATE_WINDOW_HOURS is 0'));
+    lines.push('Per address : ' + (IP_LIMIT_PER_HOUR > 0
+                 ? IP_LIMIT_PER_HOUR + ' entries an hour at most'
+                 : 'no limit, IP_LIMIT_PER_HOUR is 0'));
     lines.push('Notices to  : ' + (NOTIFY_EMAIL ||
       'nobody, NOTIFY_EMAIL is empty, so no notice of a recorded entry will be sent'));
     if (NOTIFY_EMAIL) {
@@ -780,21 +1155,17 @@ function checkSetup() {
     }
     lines.push('');
     lines.push('Setup looks sound. Now put it into service:');
-    lines.push('  first time  : Deploy > New deployment > Web app,');
-    lines.push('                Execute as Me, Who has access Anyone.');
-    lines.push('  thereafter  : Deploy > Manage deployments > pencil >');
-    lines.push('                Version New version, which keeps the same address.');
+    lines.push('  already deployed : Deploy > Manage deployments > pencil >');
+    lines.push('                     Version New version, which keeps the same address.');
+    lines.push('  first time       : Deploy > New deployment > Web app,');
+    lines.push('                     Execute as Me, Who has access Anyone.');
+    lines.push('');
+    lines.push('Deploy this version before the new index.html is put online.');
+    lines.push('The new form waits for an answer, and only this version answers.');
   } catch (err) {
     lines.push('PROBLEM: ' + err.message);
   }
   var out = lines.join('\n');
   Logger.log(out);
   return out;
-}
-
-
-function reply(payload) {
-  return ContentService
-    .createTextOutput(JSON.stringify(payload))
-    .setMimeType(ContentService.MimeType.JSON);
 }
