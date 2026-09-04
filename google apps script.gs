@@ -23,15 +23,16 @@
  *      Every entry is allotted a serial the moment it is recorded. The code
  *      issued for that entry contains the serial in the middle:
  *
- *              PFR-260904-0147-8T2
- *                     |     |    |
- *                     |     |    check group
- *                     |     serial number 147 in the register
- *                     date on which the entry was recorded
+ *              PFR-IE-30-0147-8T2
+ *                   |  |   |    |
+ *                   |  |   |    check group
+ *                   |  |   serial number 147 in the register
+ *                   |  the day of the month
+ *                   September, fifth week
  *
- *      A message quoting code PFR-260904-0147-8T2 is therefore a message
- *      about serial 147, and the officer has only to look at serial 147 to
- *      see what was actually submitted.
+ *      A message quoting code PFR-IE-30-0147-8T2 is therefore a message about
+ *      serial 147, entered on the 30th of September, and the officer has only
+ *      to look at serial 147 to see what was actually submitted.
  *
  *  3.  The code is issued here and no longer by the form.
  *
@@ -71,7 +72,7 @@
  *        since it was submitted.
  *
  *    Does the check group hold?
- *        Enter  =PFRVERIFY("PFR-260904-0147-8T2")  in any spare cell. A tick
+ *        Enter  =PFRVERIFY("PFR-IE-30-0147-8T2")  in any spare cell. A tick
  *        means this script issued the code. A cross means it did not.
  *
  *  Where NOTIFY_EMAIL is filled in, the officer also receives a notice at the
@@ -305,18 +306,21 @@ var PROP_SHEET  = 'PFR_SPREADSHEET_ID';
 /* ==========================================================================
  *  REQUEST CODE
  *
- *  Shape issued by this version:   PFR-26I1-05-0002-K7M
+ *  Shape issued by this version:   PFR-IA-05-0002-K7M
  *
- *      26     the year
  *      I      the month as a letter, A for January through to L for December
- *      1      the week of that month, the first seven days being week 1
+ *      A      the week of that month as a letter, A for the first seven days,
+ *             B for the next seven, and so on to E
  *      05     the day of the month
  *      0002   the serial number of the entry in the register
  *      K7M    check group, derived from everything before it together with
  *             the secret held in this project
  *
- *  So PFR-26I1-05-0002-K7M reads as the second entry in the register, made on
- *  5 September 2026, in the first week of that month.
+ *  So PFR-IA-05-0002-K7M reads as the second entry in the register, made on
+ *  the 5th of September, in the first week of that month.
+ *
+ *  The year is deliberately absent. Serial numbers never repeat, so codes stay
+ *  distinct from one year to the next without it.
  *
  *  This lets a message be judged at a glance. A message that reaches you today
  *  should carry today's date inside its code. One that does not was either
@@ -336,9 +340,13 @@ var CODE_CHARS = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
 /** The month as a letter, A for January through to L for December. */
 var MONTH_LETTERS = 'ABCDEFGHIJKL';
 
+/** The week of the month as a letter, A for the first seven days of the month,
+ *  B for the next seven, and so on. The 29th to the 31st fall in E. */
+var WEEK_LETTERS = 'ABCDE';
+
 /** Codes issued by this version. */
 var CODE_PATTERN =
-  /^PFR-(\d{2}[A-L][1-5])-(\d{2})-(\d{4,})-([23456789ABCDEFGHJKMNPQRSTVWXYZ]{3})$/;
+  /^PFR-([A-L][A-E])-(\d{2})-(\d{4,})-([23456789ABCDEFGHJKMNPQRSTVWXYZ]{3})$/;
 
 /** Codes issued by version 1.3. */
 var V13_PATTERN =
@@ -397,9 +405,8 @@ function codeParts(when, serial) {
   var day = parseInt(Utilities.formatDate(when, TIME_ZONE, 'dd'), 10);
   var month = parseInt(Utilities.formatDate(when, TIME_ZONE, 'MM'), 10);
   return {
-    head   : Utilities.formatDate(when, TIME_ZONE, 'yy') +
-             MONTH_LETTERS.charAt(month - 1) +
-             Math.ceil(day / 7),
+    head   : MONTH_LETTERS.charAt(month - 1) +
+             WEEK_LETTERS.charAt(Math.ceil(day / 7) - 1),
     day    : Utilities.formatDate(when, TIME_ZONE, 'dd'),
     serial : padSerial(serial)
   };
@@ -461,9 +468,8 @@ function dateFromCode(code) {
 
   var m = CODE_PATTERN.exec(text);
   if (m) {
-    var head = m[1];
-    return m[2] + ' ' + months[MONTH_LETTERS.indexOf(head.charAt(2))] +
-           ' 20' + head.substring(0, 2) + ', week ' + head.charAt(3);
+    return m[2] + ' ' + months[MONTH_LETTERS.indexOf(m[1].charAt(0))] +
+           ', week ' + (WEEK_LETTERS.indexOf(m[1].charAt(1)) + 1);
   }
 
   var older = V13_PATTERN.exec(text);
@@ -478,7 +484,7 @@ function dateFromCode(code) {
 
 /**
  * Custom sheet function, for checking a code taken off a WhatsApp message.
- * Enter  =PFRVERIFY("PFR-260904-0147-8T2")  in any spare cell.
+ * Enter  =PFRVERIFY("PFR-IE-30-0147-8T2")  in any spare cell.
  */
 function PFRVERIFY(code) {
   return isCodeValid(code) ? '✔' : '✘';
@@ -486,7 +492,7 @@ function PFRVERIFY(code) {
 
 /**
  * Custom sheet function returning the serial named by a code, so that the row
- * may be found at once. Enter  =PFRSERIAL("PFR-260904-0147-8T2").
+ * may be found at once. Enter  =PFRSERIAL("PFR-IE-30-0147-8T2").
  */
 function PFRSERIAL(code) {
   return serialFromCode(code) || '';
@@ -495,7 +501,7 @@ function PFRSERIAL(code) {
 /**
  * Custom sheet function returning the date a code names, written out, so that
  * a message may be checked against the day it arrived without decoding
- * anything by hand. Enter  =PFRDATE("PFR-26I1-05-0002-K7M").
+ * anything by hand. Enter  =PFRDATE("PFR-IE-30-0147-8T2").
  */
 function PFRDATE(code) {
   return dateFromCode(code) || '';
