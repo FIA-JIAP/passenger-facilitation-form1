@@ -300,6 +300,7 @@ var COLUMN_ORDER = [
 /** Names of the script properties this file keeps. */
 var PROP_SALT   = 'PFR_SALT';
 var PROP_SERIAL = 'PFR_LAST_SERIAL';
+var PROP_SHEET  = 'PFR_SPREADSHEET_ID';
 
 
 /* ==========================================================================
@@ -312,7 +313,7 @@ var PROP_SERIAL = 'PFR_LAST_SERIAL';
  *               secret held in this project
  *
  *  Shape issued by version 1.2, still recognised so that older rows verify:
- *                                  PFR-250903-K7M4-9
+ *                                  PFR-250903-K7M4-N
  * ========================================================================== */
 
 /** Alphabet of the check group. 0, 1, I, L, O and U are left out so that a
@@ -646,17 +647,51 @@ function highestSerialOnRecord(sheet, headers) {
  *  SHEET HANDLING
  * ========================================================================== */
 
+/**
+ * The identifier of the register, and where it came from.
+ *
+ * Whatever is put into SPREADSHEET_ID is also written into this project's own
+ * settings the first time it is used. Should a later version of this file ever
+ * be pasted in with that setting left blank, the remembered identifier is used
+ * and the script is not cut off from the register. To move the register
+ * elsewhere, put the new identifier into SPREADSHEET_ID and run checkSetup
+ * once; the remembered one is replaced.
+ */
+function registerId() {
+  var props = PropertiesService.getScriptProperties();
+  if (SPREADSHEET_ID) {
+    if (props.getProperty(PROP_SHEET) !== SPREADSHEET_ID) {
+      props.setProperty(PROP_SHEET, SPREADSHEET_ID);
+    }
+    return SPREADSHEET_ID;
+  }
+  return props.getProperty(PROP_SHEET) || '';
+}
+
 function getSpreadsheet() {
-  if (SPREADSHEET_ID) return SpreadsheetApp.openById(SPREADSHEET_ID);
+  var id = registerId();
+  if (id) return SpreadsheetApp.openById(id);
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) {
     throw new Error(
-      'No sheet is attached to this script. Either open the script from ' +
-      'within the sheet through Extensions > Apps Script, or put the ' +
-      "sheet's identifier into SPREADSHEET_ID at the top of this file.");
+      'No sheet is attached to this script and none is remembered. Either ' +
+      'open the script from within the sheet through Extensions > Apps ' +
+      "Script, or put the sheet's identifier into SPREADSHEET_ID at the top " +
+      'of this file and run checkSetup once.');
   }
   return ss;
+}
+
+/**
+ * Clears the remembered identifier. Run this only when the script is to go
+ * back to writing to a sheet it is attached to. Nothing recorded is touched.
+ */
+function forgetRegister() {
+  PropertiesService.getScriptProperties().deleteProperty(PROP_SHEET);
+  var out = 'The remembered register identifier has been cleared.';
+  Logger.log(out);
+  return out;
 }
 
 function getSheet() {
@@ -1099,8 +1134,11 @@ function checkSetup() {
     var ss = getSpreadsheet();
     lines.push('Spreadsheet : ' + ss.getName());
     lines.push('Address     : ' + ss.getUrl());
-    lines.push('Attached    : ' + (SPREADSHEET_ID ? 'no, reached by SPREADSHEET_ID'
-                                                  : 'yes, this script belongs to the sheet'));
+    lines.push('Attached    : ' + (SPREADSHEET_ID
+      ? 'no, reached by SPREADSHEET_ID, now also remembered in this project'
+      : (PropertiesService.getScriptProperties().getProperty(PROP_SHEET)
+          ? 'no, reached by the identifier remembered in this project'
+          : 'yes, this script belongs to the sheet')));
 
     var names = [];
     var tabs = ss.getSheets();
@@ -1127,19 +1165,23 @@ function checkSetup() {
     lines.push('To be added : ' + (missing.length ? missing.join(' | ') : 'nothing, every heading is already present'));
 
     var props = PropertiesService.getScriptProperties();
-    var heldSalt = props.getProperty(PROP_SALT);
-    lines.push('Secret      : ' + (heldSalt ? 'in place, made earlier'
-                                            : 'not yet made, it will be made on the first entry'));
+    var madeEarlier = !!props.getProperty(PROP_SALT);
 
     var kept = parseInt(props.getProperty(PROP_SERIAL), 10);
     var nextUp = (kept > 0) ? kept + 1
                             : highestSerialOnRecord(sheet, headers.length ? headers : COLUMN_ORDER) + 1;
-    lines.push('Next serial : ' + nextUp);
 
+    // Composing the specimen is what brings the secret into being on a fresh
+    // project, so it is composed before the secret is reported on.
     var specimen = mintCode(Utilities.formatDate(new Date(), TIME_ZONE, 'yyMMdd'), nextUp);
+
+    lines.push('Secret      : ' + (madeEarlier ? 'in place, made earlier'
+                                               : 'made just now, and kept in this project'));
+    lines.push('Next serial : ' + nextUp);
     lines.push('Specimen    : ' + specimen + '  verifies as ' + PFRVERIFY(specimen) +
                ' (a tick is expected)');
-    lines.push('Older codes : PFR-250903-K7M4-9 verifies as ' + PFRVERIFY('PFR-250903-K7M4-9') +
+    var older = 'PFR-250903-K7M4-' + legacyCheckChar('250903', 'K7M4');
+    lines.push('Older codes : ' + older + ' verifies as ' + PFRVERIFY(older) +
                ' (a tick is expected, version 1.2 codes are still recognised)');
 
     lines.push('Repeats     : the same passenger, telephone number and flight are refused ' +
