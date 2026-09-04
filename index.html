@@ -9,7 +9,7 @@
   <meta property="og:url" content="https://fia-jiap.github.io/passenger-facilitation-form/">
   <meta property="og:type" content="website">
   <title>Passenger Facilitation Request Form</title>
-  <meta name="application-version" content="1.3">
+  <meta name="application-version" content="1.4">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -440,12 +440,23 @@
       <div class="field-row">
         <div class="field-group">
           <label>Designation <span class="req">*</span></label>
-          <input type="text" id="paxDesignation" required placeholder="e.g. Director, Manager, etc.">
+          <input type="text" id="paxDesignation" required maxlength="60" placeholder="e.g. Director, Manager, etc.">
         </div>
         <div class="field-group">
-          <label>Department/Company <span class="req">*</span></label>
-          <input type="text" id="paxDepartment" required placeholder="e.g. Ministry of Interior / ABC Corp.">
+          <label>Type <span class="req">*</span></label>
+          <select id="requestType" required>
+            <option value="">Select Type</option>
+            <option value="Official/Government">Official / Government</option>
+            <option value="Private">Private</option>
+            <option value="Others">Others</option>
+          </select>
         </div>
+      </div>
+
+      <div class="field-group">
+        <label>Department/Company <span class="req">*</span></label>
+        <input type="text" id="paxDepartment" required maxlength="80" placeholder="e.g. Ministry of Interior / ABC Corp.">
+        <div class="helper-text">The Type chosen above is shown beside the Designation, for example "Managing Director (Private)".</div>
       </div>
 
       <!-- ==================== FLIGHT DETAILS ==================== -->
@@ -492,30 +503,6 @@
             <input type="radio" name="travelType" id="departure" value="Departure" required>
             <label for="departure" class="option-label">Departure</label>
           </div>
-        </div>
-      </div>
-
-      <!-- ==================== CATEGORY & TYPE ==================== -->
-      <div class="section-title">Category & Type</div>
-
-      <div class="field-row">
-        <div class="field-group">
-          <label>Category <span class="req">*</span></label>
-          <select id="category" required>
-            <option value="">Select Category</option>
-            <option value="Individual">Individual</option>
-            <option value="Family">Family</option>
-            <option value="Group">Group</option>
-          </select>
-        </div>
-        <div class="field-group">
-          <label>Type <span class="req">*</span></label>
-          <select id="requestType" required>
-            <option value="">Select Type</option>
-            <option value="Official/Government">Official / Government</option>
-            <option value="Private">Private</option>
-            <option value="Others">Others</option>
-          </select>
         </div>
       </div>
 
@@ -593,7 +580,7 @@
   <div class="form-footer">
     Federal Investigation Agency &mdash; Immigration & Anti-Human Smuggling Wing, JIAP, Karachi
     <div class="credit">Created by: Asad Ali Sodhar, AD, FIA, JIAP, Karachi.</div>
-    <div class="credit">Version 1.3</div>
+    <div class="credit">Version 1.4</div>
   </div>
 </div>
 
@@ -1102,7 +1089,6 @@
       flightTime      : formatTime(document.getElementById('flightHour').value + ':' +
                                    document.getElementById('flightMinute').value),
       travel          : (form.querySelector('input[name="travelType"]:checked') || {}).value || '',
-      category        : document.getElementById('category').value,
       requestType     : document.getElementById('requestType').value,
       paxDesignation  : document.getElementById('paxDesignation').value.trim(),
       paxDepartment   : document.getElementById('paxDepartment').value.trim(),
@@ -1132,7 +1118,6 @@
       flightDate          : d.flightDate,
       flightTime          : d.flightTime,
       travel              : d.travel,
-      category            : d.category,
       requestType         : d.requestType,
       paxDesignation      : d.paxDesignation,
       paxDepartment       : d.paxDepartment,
@@ -1158,7 +1143,7 @@
     var heading = code
       ? 'Request Code: ' + code
       : 'Request Code: not issued, the register could not be reached';
-    var msg = '*' + escapeWa(d.travel) + ' (' + heading + ')*\n\n';
+    var msg = '*' + escapeWa(d.travel).toUpperCase() + ' (' + heading + ')*\n\n';
 
     msg += '*PRIMARY PASSENGER INFORMATION*\n';
     msg += RULE + '\n';
@@ -1166,7 +1151,8 @@
     msg += '*Age:* ' + escapeWa(d.paxAge) + '\n';
     msg += '*Email:* ' + escapeWa(d.email) + '\n';
     msg += '*Phone:* ' + escapeWa(d.phone) + '\n';
-    msg += '*Designation:* ' + escapeWa(d.paxDesignation) + '\n';
+    msg += '*Designation:* ' + escapeWa(d.paxDesignation) +
+           (d.requestType ? ' (' + escapeWa(d.requestType) + ')' : '') + '\n';
     msg += '*Department/Company:* ' + escapeWa(d.paxDepartment) + '\n\n';
 
     msg += '*FLIGHT DETAILS*\n';
@@ -1175,11 +1161,6 @@
     msg += '*Airline:* ' + escapeWa(d.airlineName) + '\n';
     msg += '*Date:* ' + escapeWa(d.flightDate) + '\n';
     msg += '*Time:* ' + escapeWa(d.flightTime) + '\n\n';
-
-    msg += '*CATEGORY & TYPE*\n';
-    msg += RULE + '\n';
-    msg += '*Category:* ' + escapeWa(d.category) + '\n';
-    msg += '*Type:* ' + escapeWa(d.requestType) + '\n\n';
 
     msg += '*REFERENCE*\n';
     msg += RULE + '\n';
@@ -1434,62 +1415,42 @@
     }
 
     var radioChecked = form.querySelector('input[name="travelType"]:checked');
-    var categoryEl = document.getElementById('category');
     var typeEl = document.getElementById('requestType');
-    var categoryVal = categoryEl.value;
-    var typeVal = typeEl.value;
 
     if (!radioChecked) valid = false;
-    if (!categoryVal) { valid = false; markInvalid(categoryEl, 'change'); }
-    if (!typeVal) { valid = false; markInvalid(typeEl, 'change'); }
+    if (!typeEl.value) { valid = false; markInvalid(typeEl, 'change'); }
 
-    // Validate accompanying passengers when Family or Group is selected
-    if (categoryVal === 'Family' || categoryVal === 'Group') {
-      var paxEntries = paxContainer.querySelectorAll('.pax-entry');
-      var addBtn = document.getElementById('addPaxBtn');
-      function flagAddBtn() {
-        addBtn.style.borderColor = '#c0392b';
-        addBtn.style.color = '#c0392b';
-        addBtn.style.background = '#fdf0ef';
-        addBtn.addEventListener('click', function() {
-          addBtn.style.borderColor = '';
-          addBtn.style.color = '';
-          addBtn.style.background = '';
-        }, { once: true });
-      }
+    // Accompanying passengers need not be added at all. Any entry that has
+    // been begun, however, must be completed, so that no half filled row
+    // reaches the register.
+    var paxEntries = paxContainer.querySelectorAll('.pax-entry');
+    var allFilled = true;
+    for (var m = 0; m < paxEntries.length; m++) {
+      var nameInput = paxEntries[m].querySelector('.apName');
+      var ageInput = paxEntries[m].querySelector('.apAge');
+      var genderInput = paxEntries[m].querySelector('.apGender');
+      var nm = nameInput.value.trim();
+      var ag = ageInput.value.trim();
+      var gd = genderInput.value;
 
-      if (paxEntries.length === 0) {
-        valid = false;
-        errorMsg = errorMsg || 'You selected "' + categoryVal + '" but have not added any accompanying passengers.';
-        flagAddBtn();
+      if (!nm && !ag && !gd) continue;   // untouched, and therefore ignored
+
+      if (!nm) { allFilled = false; markInvalid(nameInput); }
+      if (!ag) {
+        allFilled = false;
+        markInvalid(ageInput);
       } else {
-        var allFilled = true;
-        for (var m = 0; m < paxEntries.length; m++) {
-          var nameInput = paxEntries[m].querySelector('.apName');
-          var ageInput = paxEntries[m].querySelector('.apAge');
-          var genderInput = paxEntries[m].querySelector('.apGender');
-          var nm = nameInput.value.trim();
-          var ag = ageInput.value.trim();
-          var gd = genderInput.value;
-
-          if (!nm) { allFilled = false; markInvalid(nameInput); }
-          if (!ag) {
-            allFilled = false;
-            markInvalid(ageInput);
-          } else {
-            var apAgeNum = parseInt(ag, 10);
-            if (isNaN(apAgeNum) || apAgeNum < 0 || apAgeNum > 120) {
-              allFilled = false;
-              markInvalid(ageInput);
-            }
-          }
-          if (!gd) { allFilled = false; markInvalid(genderInput, 'change'); }
-        }
-        if (!allFilled) {
-          valid = false;
-          errorMsg = errorMsg || 'Please complete every field for each accompanying passenger.';
+        var apAgeNum = parseInt(ag, 10);
+        if (isNaN(apAgeNum) || apAgeNum < 0 || apAgeNum > 120) {
+          allFilled = false;
+          markInvalid(ageInput);
         }
       }
+      if (!gd) { allFilled = false; markInvalid(genderInput, 'change'); }
+    }
+    if (!allFilled) {
+      valid = false;
+      errorMsg = errorMsg || 'Please complete every field for each accompanying passenger, or remove the entry.';
     }
 
     if (!valid) {

@@ -5,7 +5,7 @@
  *  Immigration & Anti-Human Smuggling Wing, Jinnah International Airport,
  *  Karachi.
  *
- *  Companion script for index.html, form version 1.3.
+ *  Companion script for index.html, form version 1.4.
  * ============================================================================
  *
  *  WHAT VERSION 1.3 CHANGES
@@ -282,7 +282,6 @@ var COLUMN_ORDER = [
   'Flight Date',
   'Flight Time',
   'Arrival/Departure',
-  'Category',
   'Type',
   'Reference Person',
   'Reference Contact',
@@ -306,22 +305,43 @@ var PROP_SHEET  = 'PFR_SPREADSHEET_ID';
 /* ==========================================================================
  *  REQUEST CODE
  *
- *  Shape issued by this version:   PFR-260904-0147-8T2
- *      260904   date on which the entry was recorded, Karachi time
- *      0147     serial number of the entry in the register
- *      8T2      check group, derived from the two parts above and from the
- *               secret held in this project
+ *  Shape issued by this version:   PFR-26I1-05-0002-K7M
  *
- *  Shape issued by version 1.2, still recognised so that older rows verify:
- *                                  PFR-250903-K7M4-N
+ *      26     the year
+ *      I      the month as a letter, A for January through to L for December
+ *      1      the week of that month, the first seven days being week 1
+ *      05     the day of the month
+ *      0002   the serial number of the entry in the register
+ *      K7M    check group, derived from everything before it together with
+ *             the secret held in this project
+ *
+ *  So PFR-26I1-05-0002-K7M reads as the second entry in the register, made on
+ *  5 September 2026, in the first week of that month.
+ *
+ *  This lets a message be judged at a glance. A message that reaches you today
+ *  should carry today's date inside its code. One that does not was either
+ *  submitted earlier and edited since, or never submitted at all. The check
+ *  group settles it either way, since only this script can compose one.
+ *
+ *  Two earlier shapes are still recognised, so that rows already recorded go
+ *  on verifying:
+ *      version 1.3                 PFR-260904-0147-8T2
+ *      version 1.2                 PFR-250903-K7M4-N
  * ========================================================================== */
 
 /** Alphabet of the check group. 0, 1, I, L, O and U are left out so that a
  *  code read off a message cannot be misread. */
 var CODE_CHARS = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
 
+/** The month as a letter, A for January through to L for December. */
+var MONTH_LETTERS = 'ABCDEFGHIJKL';
+
 /** Codes issued by this version. */
 var CODE_PATTERN =
+  /^PFR-(\d{2}[A-L][1-5])-(\d{2})-(\d{4,})-([23456789ABCDEFGHJKMNPQRSTVWXYZ]{3})$/;
+
+/** Codes issued by version 1.3. */
+var V13_PATTERN =
   /^PFR-(\d{6})-(\d{4,})-([23456789ABCDEFGHJKMNPQRSTVWXYZ]{3})$/;
 
 /** Codes issued by version 1.2. */
@@ -368,10 +388,28 @@ function codeCheckGroup(datePart, serialPart) {
   return out;
 }
 
-/** Composes the code for a given serial. */
-function mintCode(datePart, serial) {
-  var serialPart = padSerial(serial);
-  return 'PFR-' + datePart + '-' + serialPart + '-' + codeCheckGroup(datePart, serialPart);
+/**
+ * The parts of a code for a given moment and serial. The week is taken as the
+ * first seven days of the month, then the next seven, and so on, so that it
+ * may be worked out from the day alone without reference to any calendar.
+ */
+function codeParts(when, serial) {
+  var day = parseInt(Utilities.formatDate(when, TIME_ZONE, 'dd'), 10);
+  var month = parseInt(Utilities.formatDate(when, TIME_ZONE, 'MM'), 10);
+  return {
+    head   : Utilities.formatDate(when, TIME_ZONE, 'yy') +
+             MONTH_LETTERS.charAt(month - 1) +
+             Math.ceil(day / 7),
+    day    : Utilities.formatDate(when, TIME_ZONE, 'dd'),
+    serial : padSerial(serial)
+  };
+}
+
+/** Composes the code for a given moment and serial. */
+function mintCode(when, serial) {
+  var p = codeParts(when, serial);
+  return 'PFR-' + p.head + '-' + p.day + '-' + p.serial + '-' +
+         codeCheckGroup(p.head + p.day, p.serial);
 }
 
 /** The check character used by version 1.2, kept for older rows alone. */
@@ -387,12 +425,15 @@ function legacyCheckChar(datePart, randomPart) {
 }
 
 /** True when the code is well formed and its check group or check character
- *  agrees. Codes of either version are accepted. */
+ *  agrees. Codes of any of the three versions are accepted. */
 function isCodeValid(code) {
   var text = String(code == null ? '' : code).trim().toUpperCase();
 
   var m = CODE_PATTERN.exec(text);
-  if (m) return codeCheckGroup(m[1], m[2]) === m[3];
+  if (m) return codeCheckGroup(m[1] + m[2], m[3]) === m[4];
+
+  var older = V13_PATTERN.exec(text);
+  if (older) return codeCheckGroup(older[1], older[2]) === older[3];
 
   var legacy = LEGACY_PATTERN.exec(text);
   if (legacy) return legacyCheckChar(legacy[1], legacy[2]) === legacy[3];
@@ -402,8 +443,37 @@ function isCodeValid(code) {
 
 /** The serial named by a code, or an empty string where the code carries none. */
 function serialFromCode(code) {
-  var m = CODE_PATTERN.exec(String(code == null ? '' : code).trim().toUpperCase());
-  return m ? String(parseInt(m[2], 10)) : '';
+  var text = String(code == null ? '' : code).trim().toUpperCase();
+
+  var m = CODE_PATTERN.exec(text);
+  if (m) return String(parseInt(m[3], 10));
+
+  var older = V13_PATTERN.exec(text);
+  if (older) return String(parseInt(older[2], 10));
+
+  return '';
+}
+
+/** The date a code names, written out, or an empty string where it names none. */
+function dateFromCode(code) {
+  var text = String(code == null ? '' : code).trim().toUpperCase();
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  var m = CODE_PATTERN.exec(text);
+  if (m) {
+    var head = m[1];
+    return m[2] + ' ' + months[MONTH_LETTERS.indexOf(head.charAt(2))] +
+           ' 20' + head.substring(0, 2) + ', week ' + head.charAt(3);
+  }
+
+  var older = V13_PATTERN.exec(text);
+  if (older) {
+    return older[1].substring(4, 6) + ' ' +
+           months[parseInt(older[1].substring(2, 4), 10) - 1] +
+           ' 20' + older[1].substring(0, 2);
+  }
+
+  return '';
 }
 
 /**
@@ -420,6 +490,15 @@ function PFRVERIFY(code) {
  */
 function PFRSERIAL(code) {
   return serialFromCode(code) || '';
+}
+
+/**
+ * Custom sheet function returning the date a code names, written out, so that
+ * a message may be checked against the day it arrived without decoding
+ * anything by hand. Enter  =PFRDATE("PFR-26I1-05-0002-K7M").
+ */
+function PFRDATE(code) {
+  return dateFromCode(code) || '';
 }
 
 
@@ -453,7 +532,7 @@ function handleSubmission(e) {
     return reply({
       ok: true,
       service: 'Passenger Facilitation Request receiver',
-      version: '1.3'
+      version: '1.4'
     }, callback);
   }
 
@@ -502,9 +581,8 @@ function handleSubmission(e) {
     }
 
     // Serial, code and the row itself.
-    var datePart = Utilities.formatDate(now, TIME_ZONE, 'yyMMdd');
-    var serial   = nextSerial(sheet, headers);
-    var code     = mintCode(datePart, serial);
+    var serial = nextSerial(sheet, headers);
+    var code   = mintCode(now, serial);
 
     values['Serial']        = serial;
     values['Request Code']  = code;
@@ -982,7 +1060,6 @@ function buildValues(params) {
     'Flight Date'          : get('flightDate'),
     'Flight Time'          : get('flightTime'),
     'Arrival/Departure'    : get('travel'),
-    'Category'             : get('category'),
     'Type'                 : get('requestType'),
     'Reference Person'     : get('referencePerson'),
     'Reference Contact'    : get('referenceContact'),
@@ -1107,13 +1184,13 @@ function sendTestNotice() {
     paxDesignation: 'Assistant Director', paxDepartment: 'FIA, JIAP, Karachi',
     flightNumber: 'PK-308', airlineName: 'PIA',
     flightDate: '15 Oct 2026', flightTime: '17:45', travel: 'Departure',
-    category: 'Individual', requestType: 'Official/Government',
+    requestType: 'Official/Government',
     referencePerson: 'Self', referenceContact: '+92 21 00000000',
     accompanyingCount: '0',
     comments: 'This is a specimen notice. No entry has been recorded.'
   });
   specimen['Serial'] = 147;
-  specimen['Request Code'] = mintCode(Utilities.formatDate(new Date(), TIME_ZONE, 'yyMMdd'), 147);
+  specimen['Request Code'] = mintCode(new Date(), 147);
   specimen['Code Verified'] = '✔';
 
   sendNotice(specimen, getSheet());
@@ -1173,16 +1250,21 @@ function checkSetup() {
 
     // Composing the specimen is what brings the secret into being on a fresh
     // project, so it is composed before the secret is reported on.
-    var specimen = mintCode(Utilities.formatDate(new Date(), TIME_ZONE, 'yyMMdd'), nextUp);
+    var specimen = mintCode(new Date(), nextUp);
 
     lines.push('Secret      : ' + (madeEarlier ? 'in place, made earlier'
                                                : 'made just now, and kept in this project'));
     lines.push('Next serial : ' + nextUp);
     lines.push('Specimen    : ' + specimen + '  verifies as ' + PFRVERIFY(specimen) +
                ' (a tick is expected)');
-    var older = 'PFR-250903-K7M4-' + legacyCheckChar('250903', 'K7M4');
-    lines.push('Older codes : ' + older + ' verifies as ' + PFRVERIFY(older) +
-               ' (a tick is expected, version 1.2 codes are still recognised)');
+    lines.push('  reads as  : ' + PFRDATE(specimen) + ', serial ' + PFRSERIAL(specimen));
+
+    var v13 = 'PFR-260904-0147-' + codeCheckGroup('260904', '0147');
+    lines.push('Version 1.3 : ' + v13 + ' verifies as ' + PFRVERIFY(v13) +
+               ' (a tick is expected, those codes are still recognised)');
+    var v12 = 'PFR-250903-K7M4-' + legacyCheckChar('250903', 'K7M4');
+    lines.push('Version 1.2 : ' + v12 + ' verifies as ' + PFRVERIFY(v12) +
+               ' (a tick is expected, those codes are still recognised)');
 
     lines.push('Repeats     : the same passenger, telephone number and flight are refused ' +
                (DUPLICATE_WINDOW_HOURS > 0 ? 'within ' + DUPLICATE_WINDOW_HOURS + ' hours'
