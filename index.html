@@ -9,7 +9,7 @@
   <meta property="og:url" content="https://fia-jiap.github.io/passenger-facilitation-form/">
   <meta property="og:type" content="website">
   <title>Passenger Facilitation Request Form</title>
-  <meta name="application-version" content="1.5">
+  <meta name="application-version" content="2.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -161,6 +161,42 @@
 
     .time-select-row { display: flex; gap: 8px; }
     .time-select-row select { flex: 1; min-width: 0; }
+
+    /* Final destination: a list that narrows as the applicant types */
+    .combo { position: relative; }
+    .combo-list {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      margin-top: 4px;
+      max-height: 240px;
+      max-height: min(240px, 40vh);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      list-style: none;
+      background: #fff;
+      border: 1.5px solid #d5dbe3;
+      border-radius: 8px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+    }
+    .combo-list li {
+      padding: 9px 12px;
+      font-size: 13.5px;
+      cursor: pointer;
+      border-bottom: 1px solid #f0f2f5;
+    }
+    .combo-list li:last-child { border-bottom: none; }
+    .combo-list li.active { background: #eaf5ef; color: #0d3b2e; }
+    @media (hover: hover) {
+      .combo-list li:hover { background: #eaf5ef; color: #0d3b2e; }
+      .combo-list li.combo-empty:hover { background: none; color: #7a8a9e; }
+    }
+    .combo-list li .combo-full { color: #7a8a9e; font-size: 12px; margin-left: 6px; }
+    .combo-list li.combo-other { font-weight: 600; color: #145a3e; }
+    .combo-list li.combo-empty { color: #7a8a9e; cursor: default; font-size: 12.5px; }
+    #destinationOther { margin-top: 8px; }
 
     /* Accompanying passengers */
     .pax-entry {
@@ -506,6 +542,20 @@
         </div>
       </div>
 
+      <!-- Shown for departures only -->
+      <div class="field-group" id="destinationGroup" style="display:none">
+        <label for="destinationInput">Final Destination <span class="req">*</span></label>
+        <div class="combo" id="destinationCombo">
+          <input type="text" id="destinationInput" autocomplete="off" spellcheck="false"
+                 placeholder="Type to search, e.g. UAE, KSA, Canada"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="destinationList">
+          <ul id="destinationList" class="combo-list" role="listbox" style="display:none"></ul>
+        </div>
+        <input type="text" id="destinationOther" maxlength="60" aria-label="Name of the country"
+               placeholder="Type the name of the country" style="display:none">
+        <div class="helper-text">The country where the journey ends. If it is not in the list, choose Others at the end of the list and type its name.</div>
+      </div>
+
       <!-- ==================== REFERENCE PERSON ==================== -->
       <div class="section-title">Reference Person</div>
 
@@ -580,7 +630,7 @@
   <div class="form-footer">
     Federal Investigation Agency &mdash; Immigration & Anti-Human Smuggling Wing, JIAP, Karachi
     <div class="credit">Created by: Asad Ali Sodhar, AD, FIA, JIAP, Karachi.</div>
-    <div class="credit">Version 1.5</div>
+    <div class="credit">Version 2.0</div>
   </div>
 </div>
 
@@ -1012,6 +1062,368 @@
     }
   })();
 
+  // ------------------------------------------------------------
+  // FINAL DESTINATION
+  //
+  // Asked for departures only. The country is chosen from a list that narrows
+  // as the applicant types. Others, always the last entry, opens a box in which
+  // a country not listed may be written, and whatever is written there is what
+  // the register and the message carry.
+  //
+  // The list holds the member states of the United Nations together with
+  // Palestine, Hong Kong and Macau. Pakistan, Israel and Armenia are not
+  // listed. Others covers a journey to any place the list does not hold.
+  // ------------------------------------------------------------
+  var OTHERS = 'Others';
+
+  var COUNTRIES = [
+    'Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Antigua and Barbuda',
+    'Argentina', 'Australia', 'Austria', 'Azerbaijan',
+    'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados', 'Belarus', 'Belgium', 'Belize',
+    'Benin', 'Bhutan', 'Bolivia', 'Bosnia and Herzegovina', 'Botswana', 'Brazil',
+    'Brunei', 'Bulgaria', 'Burkina Faso', 'Burundi',
+    'Cabo Verde', 'Cambodia', 'Cameroon', 'Canada', 'Central African Republic', 'Chad',
+    'Chile', 'China', 'Colombia', 'Comoros', 'Congo', 'Costa Rica', "Côte d'Ivoire",
+    'Croatia', 'Cuba', 'Cyprus', 'Czechia',
+    'Democratic Republic of the Congo', 'Denmark', 'Djibouti', 'Dominica',
+    'Dominican Republic',
+    'Ecuador', 'Egypt', 'El Salvador', 'Equatorial Guinea', 'Eritrea', 'Estonia',
+    'Eswatini', 'Ethiopia',
+    'Fiji', 'Finland', 'France',
+    'Gabon', 'Gambia', 'Georgia', 'Germany', 'Ghana', 'Greece', 'Grenada', 'Guatemala',
+    'Guinea', 'Guinea-Bissau', 'Guyana',
+    'Haiti', 'Honduras', 'Hong Kong', 'Hungary',
+    'Iceland', 'India', 'Indonesia', 'Iran', 'Iraq', 'Ireland', 'Italy',
+    'Jamaica', 'Japan', 'Jordan',
+    'Kazakhstan', 'Kenya', 'Kiribati', 'KSA', 'Kuwait', 'Kyrgyzstan',
+    'Laos', 'Latvia', 'Lebanon', 'Lesotho', 'Liberia', 'Libya', 'Liechtenstein',
+    'Lithuania', 'Luxembourg',
+    'Macau', 'Madagascar', 'Malawi', 'Malaysia', 'Maldives', 'Mali', 'Malta',
+    'Marshall Islands', 'Mauritania', 'Mauritius', 'Mexico', 'Micronesia', 'Moldova',
+    'Monaco', 'Mongolia', 'Montenegro', 'Morocco', 'Mozambique', 'Myanmar',
+    'Namibia', 'Nauru', 'Nepal', 'Netherlands', 'New Zealand', 'Nicaragua', 'Niger',
+    'Nigeria', 'North Korea', 'North Macedonia', 'Norway',
+    'Oman',
+    'Palau', 'Palestine', 'Panama', 'Papua New Guinea', 'Paraguay', 'Peru',
+    'Philippines', 'Poland', 'Portugal',
+    'Qatar',
+    'Romania', 'Russia', 'Rwanda',
+    'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Samoa',
+    'San Marino', 'São Tomé and Príncipe', 'Senegal', 'Serbia', 'Seychelles',
+    'Sierra Leone', 'Singapore', 'Slovakia', 'Slovenia', 'Solomon Islands', 'Somalia',
+    'South Africa', 'South Korea', 'South Sudan', 'Spain', 'Sri Lanka', 'Sudan',
+    'Suriname', 'Sweden', 'Switzerland', 'Syria',
+    'Tajikistan', 'Tanzania', 'Thailand', 'Timor-Leste', 'Togo', 'Tonga',
+    'Trinidad and Tobago', 'Tunisia', 'Türkiye', 'Turkmenistan', 'Tuvalu',
+    'UAE', 'Uganda', 'UK', 'Ukraine', 'Uruguay', 'USA', 'Uzbekistan',
+    'Vanuatu', 'Venezuela', 'Vietnam',
+    'Yemen',
+    'Zambia', 'Zimbabwe'
+  ];
+
+  // Four countries are recorded by the short form in everyday use. The list
+  // shows the full name beside each and places it where the full name falls.
+  var SHORT_FORMS = {
+    'KSA': 'Saudi Arabia',
+    'UAE': 'United Arab Emirates',
+    'UK' : 'United Kingdom',
+    'USA': 'United States'
+  };
+
+  // Other names by which a country may be looked for.
+  var OTHER_NAMES = {
+    'KSA': ['Kingdom of Saudi Arabia'],
+    'UAE': ['Emirates', 'Dubai', 'Abu Dhabi', 'Sharjah'],
+    'UK' : ['Britain', 'Great Britain', 'England', 'Scotland', 'Wales', 'Northern Ireland'],
+    'USA': ['US', 'America', 'United States of America'],
+    'Bolivia': ['Plurinational State of Bolivia'],
+    'Brunei': ['Brunei Darussalam'],
+    'Cabo Verde': ['Cape Verde'],
+    'Congo': ['Republic of the Congo', 'Congo Brazzaville'],
+    "Côte d'Ivoire": ['Ivory Coast'],
+    'Czechia': ['Czech Republic'],
+    'Democratic Republic of the Congo': ['DR Congo', 'DRC', 'Congo Kinshasa'],
+    'Eswatini': ['Swaziland'],
+    'Iran': ['Islamic Republic of Iran'],
+    'Laos': ["Lao People's Democratic Republic"],
+    'Macau': ['Macao'],
+    'Micronesia': ['Federated States of Micronesia'],
+    'Moldova': ['Republic of Moldova'],
+    'Myanmar': ['Burma'],
+    'Netherlands': ['Holland'],
+    'North Korea': ["Democratic People's Republic of Korea", 'DPRK'],
+    'North Macedonia': ['Macedonia'],
+    'Palestine': ['State of Palestine'],
+    'Russia': ['Russian Federation'],
+    'Saint Kitts and Nevis': ['St Kitts and Nevis'],
+    'Saint Lucia': ['St Lucia'],
+    'Saint Vincent and the Grenadines': ['St Vincent and the Grenadines'],
+    'South Korea': ['Republic of Korea'],
+    'Syria': ['Syrian Arab Republic'],
+    'Tanzania': ['United Republic of Tanzania'],
+    'Timor-Leste': ['East Timor'],
+    'Türkiye': ['Turkey'],
+    'Venezuela': ['Bolivarian Republic of Venezuela'],
+    'Vietnam': ['Viet Nam']
+  };
+
+  /** A name reduced for comparison: no accents, no capitals, no punctuation. */
+  function plainName(s) {
+    s = String(s == null ? '' : s);
+    if (typeof s.normalize === 'function') s = s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+    return s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/^ +| +$/g, '');
+  }
+
+  var destinations = (function () {
+    var list = [];
+    for (var i = 0; i < COUNTRIES.length; i++) {
+      var name = COUNTRIES[i];
+      var full = SHORT_FORMS[name] || '';
+      var names = [name].concat(full ? [full] : [], OTHER_NAMES[name] || []);
+      var keys = [];
+      for (var j = 0; j < names.length; j++) keys.push(plainName(names[j]));
+      list.push({ name: name, full: full, sortKey: full || name, keys: keys });
+    }
+    list.sort(function (a, b) { return a.sortKey.localeCompare(b.sortKey, 'en'); });
+    return list;
+  })();
+
+  /**
+   * How closely a country answers what was typed, the lower the closer: the
+   * name itself, then a name beginning with it, then a word beginning with it,
+   * then anything containing it. Minus one where it does not answer at all.
+   */
+  function matchRank(entry, query) {
+    var best = -1;
+    for (var i = 0; i < entry.keys.length; i++) {
+      var k = entry.keys[i], r = -1;
+      if (k === query) r = 0;
+      else if (k.indexOf(query) === 0) r = 1;
+      else if ((' ' + k).indexOf(' ' + query) !== -1) r = 2;
+      else if (k.indexOf(query) !== -1) r = 3;
+      if (r !== -1 && (best === -1 || r < best)) best = r;
+    }
+    return best;
+  }
+
+  function matchingDestinations(typed) {
+    var query = plainName(typed);
+    if (!query) return destinations.slice();
+    var found = [];
+    for (var i = 0; i < destinations.length; i++) {
+      var r = matchRank(destinations[i], query);
+      if (r !== -1) found.push({ entry: destinations[i], rank: r, at: i });
+    }
+    found.sort(function (a, b) { return a.rank - b.rank || a.at - b.at; });
+    var out = [];
+    for (var j = 0; j < found.length; j++) out.push(found[j].entry);
+    return out;
+  }
+
+  /** The list entry a name typed in full stands for, or an empty string. */
+  function destinationByName(typed) {
+    var query = plainName(typed);
+    if (!query) return '';
+    if (query === plainName(OTHERS)) return OTHERS;
+    for (var i = 0; i < destinations.length; i++) {
+      if (destinations[i].keys.indexOf(query) !== -1) return destinations[i].name;
+    }
+    return '';
+  }
+
+  var destGroup  = document.getElementById('destinationGroup');
+  var destCombo  = document.getElementById('destinationCombo');
+  var destInput  = document.getElementById('destinationInput');
+  var destList   = document.getElementById('destinationList');
+  var destOther  = document.getElementById('destinationOther');
+  var destChoice = '';   // the country chosen, or OTHERS, or '' while none is
+  var destShown  = [];   // the entries now listed, Others last
+  var destActive = -1;   // the entry marked with the arrow keys
+
+  function addDestinationItem(name, full, extraClass) {
+    var li = document.createElement('li');
+    li.id = 'destination-option-' + destShown.length;
+    li.setAttribute('role', 'option');
+    li.setAttribute('data-index', String(destShown.length));
+    if (extraClass) li.className = extraClass;
+    li.appendChild(document.createTextNode(name));
+    if (full) {
+      var span = document.createElement('span');
+      span.className = 'combo-full';
+      span.textContent = full;
+      li.appendChild(span);
+    }
+    destList.appendChild(li);
+    destShown.push(name);
+  }
+
+  function openDestinations() {
+    // Once a country has been chosen the whole list is offered again, with
+    // that country marked, so that another may be picked in its place.
+    var chosenShown = !!destChoice && destInput.value === destChoice;
+    var entries = matchingDestinations(chosenShown ? '' : destInput.value);
+    while (destList.firstChild) destList.removeChild(destList.firstChild);
+    destShown = [];
+    destActive = -1;
+    destInput.removeAttribute('aria-activedescendant');
+
+    if (!entries.length) {
+      var none = document.createElement('li');
+      none.className = 'combo-empty';
+      none.textContent = 'No country in the list matches. Choose Others to type the name.';
+      destList.appendChild(none);
+    }
+    for (var i = 0; i < entries.length; i++) addDestinationItem(entries[i].name, entries[i].full, '');
+    addDestinationItem(OTHERS, '', 'combo-other');
+
+    destList.style.display = '';
+    destList.scrollTop = 0;
+    destInput.setAttribute('aria-expanded', 'true');
+    if (chosenShown) markDestination(destShown.indexOf(destChoice));
+  }
+
+  function closeDestinations() {
+    destList.style.display = 'none';
+    destInput.setAttribute('aria-expanded', 'false');
+    destInput.removeAttribute('aria-activedescendant');
+    destActive = -1;
+  }
+
+  function destinationsOpen() {
+    return destList.style.display !== 'none';
+  }
+
+  function markDestination(index) {
+    var items = destList.querySelectorAll('li[role="option"]');
+    if (!items.length) return;
+    if (index < 0) index = items.length - 1;
+    if (index >= items.length) index = 0;
+    for (var i = 0; i < items.length; i++) items[i].classList.remove('active');
+    var li = items[index];
+    li.classList.add('active');
+    destActive = index;
+    destInput.setAttribute('aria-activedescendant', li.id);
+    if (li.offsetTop < destList.scrollTop) {
+      destList.scrollTop = li.offsetTop;
+    } else if (li.offsetTop + li.offsetHeight > destList.scrollTop + destList.clientHeight) {
+      destList.scrollTop = li.offsetTop + li.offsetHeight - destList.clientHeight;
+    }
+  }
+
+  function chooseDestination(name, quietly) {
+    destChoice = name;
+    destInput.value = name;
+    destInput.style.borderColor = '';
+    closeDestinations();
+    if (name === OTHERS) {
+      destOther.style.display = '';
+      if (!quietly) destOther.focus();
+    } else {
+      destOther.style.display = 'none';
+    }
+  }
+
+  // A name typed in full, and not picked from the list, is taken as chosen
+  // where the list knows it, so that "Saudi Arabia" typed out becomes KSA.
+  function settleTypedDestination() {
+    if (destChoice && destInput.value === destChoice) return;
+    var found = destinationByName(destInput.value);
+    if (found) {
+      chooseDestination(found, true);
+    } else {
+      destChoice = '';
+      destOther.style.display = 'none';
+    }
+  }
+
+  /** The destination as recorded: the country chosen, or the name written
+   *  under Others. Empty for an arrival. */
+  function finalDestination() {
+    var chosen = form.querySelector('input[name="travelType"]:checked');
+    if (!chosen || chosen.value !== 'Departure') return '';
+    if (destChoice === OTHERS) return destOther.value.trim();
+    return destChoice;
+  }
+
+  destInput.addEventListener('focus', openDestinations);
+  destInput.addEventListener('click', function () {
+    if (!destinationsOpen()) openDestinations();
+  });
+  destInput.addEventListener('input', function () {
+    if (destChoice && destInput.value !== destChoice) {
+      destChoice = '';
+      destOther.style.display = 'none';
+    }
+    openDestinations();
+  });
+  destInput.addEventListener('keydown', function (e) {
+    var key = e.key || '';
+    if (key === 'ArrowDown' || key === 'Down') {
+      e.preventDefault();
+      if (!destinationsOpen()) openDestinations();
+      markDestination(destActive + 1);
+    } else if (key === 'ArrowUp' || key === 'Up') {
+      e.preventDefault();
+      if (!destinationsOpen()) openDestinations();
+      markDestination(destActive < 0 ? -1 : destActive - 1);
+    } else if (key === 'Enter') {
+      // With the list open, Enter picks an entry rather than submitting.
+      if (!destinationsOpen()) return;
+      e.preventDefault();
+      var pick = destActive >= 0 ? destActive : (plainName(destInput.value) ? 0 : -1);
+      if (pick >= 0 && pick < destShown.length) chooseDestination(destShown[pick]);
+    } else if (key === 'Escape' || key === 'Esc') {
+      if (destinationsOpen()) { e.preventDefault(); closeDestinations(); }
+    }
+  });
+
+  // Pressing on the list must not take the focus from the box, or the list
+  // would close before the choice could be read.
+  destList.addEventListener('mousedown', function (e) { e.preventDefault(); });
+  destList.addEventListener('click', function (e) {
+    var li = e.target;
+    while (li && li !== destList && !(li.getAttribute && li.getAttribute('data-index'))) li = li.parentNode;
+    if (!li || li === destList) return;
+    var name = destShown[parseInt(li.getAttribute('data-index'), 10)];
+    if (name) chooseDestination(name);
+  });
+
+  // The list closes once the applicant turns to anything else on the page.
+  function leaveDestinations(e) {
+    if (destinationsOpen() && !destCombo.contains(e.target)) {
+      settleTypedDestination();
+      closeDestinations();
+    }
+  }
+  document.addEventListener('mousedown', leaveDestinations);
+  document.addEventListener('touchstart', leaveDestinations);
+  document.addEventListener('focusin', leaveDestinations);
+
+  // Shown for a departure, and emptied and hidden for an arrival.
+  function syncDestination() {
+    var chosen = form.querySelector('input[name="travelType"]:checked');
+    var departing = !!chosen && chosen.value === 'Departure';
+    destGroup.style.display = departing ? '' : 'none';
+    if (departing) {
+      settleTypedDestination();
+      destOther.style.display = destChoice === OTHERS ? '' : 'none';
+      return;
+    }
+    closeDestinations();
+    destChoice = '';
+    destInput.value = '';
+    destOther.value = '';
+    destOther.style.display = 'none';
+  }
+
+  (function watchTravelType() {
+    var radios = form.querySelectorAll('input[name="travelType"]');
+    for (var i = 0; i < radios.length; i++) radios[i].addEventListener('change', syncDestination);
+    // A browser returning to the page may restore the choices made earlier.
+    window.addEventListener('pageshow', syncDestination);
+    syncDestination();
+  })();
+
   function isValidEmail(s) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
   }
@@ -1089,6 +1501,7 @@
       flightTime      : formatTime(document.getElementById('flightHour').value + ':' +
                                    document.getElementById('flightMinute').value),
       travel          : (form.querySelector('input[name="travelType"]:checked') || {}).value || '',
+      finalDestination: finalDestination(),
       requestType     : document.getElementById('requestType').value,
       paxDesignation  : document.getElementById('paxDesignation').value.trim(),
       paxDepartment   : document.getElementById('paxDepartment').value.trim(),
@@ -1118,6 +1531,7 @@
       flightDate          : d.flightDate,
       flightTime          : d.flightTime,
       travel              : d.travel,
+      finalDestination    : d.finalDestination,
       requestType         : d.requestType,
       paxDesignation      : d.paxDesignation,
       paxDepartment       : d.paxDepartment,
@@ -1160,7 +1574,11 @@
     msg += '*Flight:* ' + escapeWa(d.flightNumber) + '\n';
     msg += '*Airline:* ' + escapeWa(d.airlineName) + '\n';
     msg += '*Date:* ' + escapeWa(d.flightDate) + '\n';
-    msg += '*Time:* ' + escapeWa(d.flightTime) + '\n\n';
+    msg += '*Time:* ' + escapeWa(d.flightTime) + '\n';
+    if (d.finalDestination) {
+      msg += '*Final Destination:* ' + escapeWa(d.finalDestination) + '\n';
+    }
+    msg += '\n';
 
     msg += '*REFERENCE*\n';
     msg += RULE + '\n';
@@ -1418,6 +1836,25 @@
 
     if (!radioChecked) valid = false;
     if (!typeEl.value) { valid = false; markInvalid(typeEl, 'change'); }
+
+    // Final destination, asked for departures only. A name typed out in full
+    // is accepted as chosen where the list knows it.
+    if (radioChecked && radioChecked.value === 'Departure') {
+      settleTypedDestination();
+      closeDestinations();
+      if (!destChoice) {
+        valid = false;
+        if (destInput.value.trim()) {
+          errorMsg = errorMsg || 'Please choose the final destination from the list. If the ' +
+                                 'country is not listed, choose Others and type its name.';
+        }
+        markInvalid(destInput);
+      } else if (destChoice === OTHERS && !destOther.value.trim()) {
+        valid = false;
+        errorMsg = errorMsg || 'Please type the name of the final destination country.';
+        markInvalid(destOther);
+      }
+    }
 
     // Accompanying passengers need not be added at all. Any entry that has
     // been begun, however, must be completed, so that no half filled row
