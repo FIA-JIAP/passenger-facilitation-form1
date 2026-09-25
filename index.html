@@ -1183,7 +1183,7 @@
 
     if (d.accompanying.length > 0) {
       msg += '*Accompanying passengers (' + d.accompanying.length + ')*\n';
-      msg += RULE + '\n\n';
+      msg += RULE + '\n';
       for (var k = 0; k < d.accompanying.length; k++) {
         msg += (k + 1) + '. ' + escapeWa(d.accompanying[k].name) +
                ' (Age: ' + escapeWa(d.accompanying[k].age) + ', ' +
