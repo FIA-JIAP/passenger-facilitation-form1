@@ -405,8 +405,21 @@
       background: #f8faf9;
       border: 1.5px dashed #145a3e;
       border-radius: 8px;
-      padding: 14px;
+      padding: 12px 14px;
       margin-bottom: 22px;
+    }
+    /* The box opens as a bar bearing its title alone; pressing it shows the rest. */
+    .quick-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 0;
+      border: none;
+      background: none;
+      font-family: inherit;
+      text-align: left;
+      cursor: pointer;
     }
     .quick-fill .quick-title {
       font-size: 13px;
@@ -414,8 +427,18 @@
       color: #0d3b2e;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      margin-bottom: 2px;
     }
+    .quick-chevron {
+      width: 9px;
+      height: 9px;
+      margin: 0 5px 4px 0;
+      border-right: 2px solid #145a3e;
+      border-bottom: 2px solid #145a3e;
+      transform: rotate(45deg);
+      transition: transform 0.2s;
+    }
+    .quick-fill.open .quick-chevron { transform: rotate(-135deg); margin-bottom: -4px; }
+    .quick-fill.open .quick-toggle { margin-bottom: 6px; }
     .quick-fill textarea {
       margin-top: 10px;
       min-height: 104px;
@@ -492,19 +515,25 @@
   <div class="form-body">
 
     <!-- ==================== QUICK FILL ====================
-         Hidden unless the address of the page ends in #quick. A block of
-         particulars prepared elsewhere is pasted here and written into the
-         fields below. Nothing is sent from this box; the form is checked and
-         submitted in the ordinary way. -->
+         Hidden unless the address of the page ends in #quick, and then shown
+         as a bar that opens when pressed. A block of particulars prepared
+         elsewhere is pasted here and written into the fields below. Nothing
+         is sent from this box; the form is checked and submitted in the
+         ordinary way. -->
     <div id="quickFill" class="quick-fill" style="display:none">
-      <div class="quick-title">Quick Fill</div>
-      <div class="helper-text">Paste the prepared details here. They are written into the form below for you to check. Nothing is sent until you press Submit.</div>
-      <textarea id="quickText" rows="5" spellcheck="false" autocomplete="off" autocapitalize="off"
-                aria-label="Details to be filled into the form"
-                placeholder="First Name: ...&#10;Last Name: ...&#10;Age: ..."></textarea>
-      <div class="quick-actions">
-        <button type="button" id="quickPasteBtn" class="primary">Paste and fill</button>
-        <button type="button" id="quickFillBtn">Fill form</button>
+      <button type="button" id="quickToggle" class="quick-toggle" aria-expanded="false" aria-controls="quickBody">
+        <span class="quick-title">Quick Fill</span>
+        <span class="quick-chevron" aria-hidden="true"></span>
+      </button>
+      <div id="quickBody" style="display:none">
+        <div class="helper-text">Paste the prepared details here. They are written into the form below for you to check. Nothing is sent until you press Submit.</div>
+        <textarea id="quickText" rows="5" spellcheck="false" autocomplete="off" autocapitalize="off"
+                  aria-label="Details to be filled into the form"
+                  placeholder="First Name: ...&#10;Last Name: ...&#10;Age: ..."></textarea>
+        <div class="quick-actions">
+          <button type="button" id="quickPasteBtn" class="primary">Paste and fill</button>
+          <button type="button" id="quickFillBtn">Fill form</button>
+        </div>
       </div>
       <div id="quickStatus" class="quick-status" style="display:none" role="status"></div>
     </div>
@@ -2017,18 +2046,23 @@
   // ============================================================
   // QUICK FILL
   //
-  // Shown only where the address of the page ends in #quick. A block of
-  // particulars prepared elsewhere, one "Label: value" to a line, is pasted
-  // into the box and written into the fields of the form above, which is then
-  // checked and submitted in the ordinary way. Nothing is sent from here, and
-  // the form is unchanged for anyone who opens it without #quick.
+  // Shown only where the address of the page ends in #quick, and then as a
+  // bar that opens when pressed. A block of particulars is pasted into the
+  // box and written into the fields of the form above, which is then checked
+  // and submitted in the ordinary way. Nothing is sent from here, and the
+  // form is unchanged for anyone who opens it without #quick.
   //
-  // An accompanying passenger is written as "Passenger: Name | Age | Gender",
-  // one line for each. Lines that follow Comments and carry no label of their
-  // own are taken as more of the comments.
+  // Two layouts are read. The first is one "Label: value" to a line, with an
+  // accompanying passenger written as "Passenger: Name | Age | Gender" and
+  // lines that follow Comments without a label of their own taken as more of
+  // the comments. The second is the message this form itself prepares for
+  // WhatsApp, headings, rules and all, so that such a message may be pasted
+  // back as it stands.
   // ============================================================
   (function () {
     var panel    = document.getElementById('quickFill');
+    var toggle   = document.getElementById('quickToggle');
+    var body     = document.getElementById('quickBody');
     var box      = document.getElementById('quickText');
     var pasteBtn = document.getElementById('quickPasteBtn');
     var fillBtn  = document.getElementById('quickFillBtn');
@@ -2037,7 +2071,7 @@
     var paxBox   = document.getElementById('paxContainer');
     var addBtn   = document.getElementById('addPaxBtn');
     var sendBtn  = document.getElementById('submitBtn');
-    if (!panel || !box || !pasteBtn || !fillBtn || !statusEl ||
+    if (!panel || !toggle || !body || !box || !pasteBtn || !fillBtn || !statusEl ||
         !theForm || !paxBox || !addBtn || !sendBtn) return;
 
     function showOrHide() {
@@ -2046,14 +2080,27 @@
     showOrHide();
     window.addEventListener('hashchange', showOrHide);
 
+    // The box is closed until its bar is pressed, and closes again once the
+    // form has been filled, so that the form itself is what is seen.
+    function setOpen(open) {
+      body.style.display = open ? '' : 'none';
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      panel.className = open ? 'quick-fill open' : 'quick-fill';
+    }
+    toggle.addEventListener('click', function () {
+      setOpen(body.style.display === 'none');
+    });
+
     var OTHERS_NAME = (typeof OTHERS === 'string' && OTHERS) ? OTHERS : 'Others';
 
     // The labels understood, reduced to their letters, and what each one fills.
     var LABELS = {
       firstname: 'firstName',
       lastname: 'lastName', surname: 'lastName',
+      name: 'fullName', fullname: 'fullName', passengername: 'fullName',
       age: 'paxAge',
       phone: 'phone', phonenumber: 'phone', mobile: 'phone',
+      contact: 'contact', contactnumber: 'contact',
       email: 'email', emailaddress: 'email',
       designation: 'paxDesignation',
       type: 'requestType',
@@ -2064,12 +2111,25 @@
       time: 'flightTime', flighttime: 'flightTime',
       travel: 'travel', traveltype: 'travel', arrivalordeparture: 'travel',
       destination: 'destination', finaldestination: 'destination',
-      reference: 'referencePerson', referenceperson: 'referencePerson',
+      reference: 'referencePerson', referenceperson: 'referencePerson', person: 'referencePerson',
       referencecontact: 'referenceContact', referencecontactnumber: 'referenceContact',
       proname: 'proName', procontact: 'proContact',
       prodesignation: 'proDesignation', prodepartment: 'proDepartment',
       passenger: 'pax', pax: 'pax', accompanying: 'pax', accompanyingpassenger: 'pax',
-      comments: 'comments', comment: 'comments', additionalcomments: 'comments', remarks: 'comments'
+      comments: 'comments', comment: 'comments', additionalcomments: 'comments', remarks: 'comments',
+      requestcode: 'skip'
+    };
+
+    // The headings of the WhatsApp message, by which the lines beneath each
+    // are placed.
+    var SECTIONS = {
+      primarypassengerinformation: 'primary',
+      flightdetails: 'flight',
+      reference: 'reference', referenceperson: 'reference',
+      prodetails: 'pro',
+      accompanyingpassengers: 'pax', accompanyingpassenger: 'pax',
+      additionalcomments: 'comments', additionalinformation: 'comments',
+      additionalrequestsorcomments: 'comments', comments: 'comments'
     };
 
     // The names by which the fields are spoken of in the notes shown.
@@ -2111,38 +2171,149 @@
       try { statusEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
     }
 
+    /** Under the headings of the WhatsApp message a few labels stand for
+     *  another field than they would alone. */
+    function placed(field, section) {
+      if (field === 'contact') {
+        if (section === 'reference') return 'referenceContact';
+        return section === 'pro' ? 'proContact' : 'phone';
+      }
+      if (field === 'fullName') {
+        if (section === 'reference') return 'referencePerson';
+        return section === 'pro' ? 'proName' : 'fullName';
+      }
+      if (section === 'pro') {
+        if (field === 'paxDesignation') return 'proDesignation';
+        if (field === 'paxDepartment') return 'proDepartment';
+      }
+      return field;
+    }
+
+    /** The Type as the message shows it in brackets after the Designation.
+     *  Only the exact words count, so that "Director (Operations)" is left
+     *  as it is. */
+    function typeInBrackets(s) {
+      var k = letters(s);
+      if (k === 'officialgovernment' || k === 'official' || k === 'government' || k === 'govt') {
+        return 'Official/Government';
+      }
+      if (k === 'private') return 'Private';
+      if (k === 'others' || k === 'other') return 'Others';
+      return '';
+    }
+
     /**
-     * The block as read: what was given under each label, the accompanying
-     * passengers in the order given, and any line that could not be placed.
+     * The block as read: what was given for each field, the accompanying
+     * passengers in the order given, any line that could not be placed, and
+     * anything worth mentioning about how the block was taken.
      */
     function readBlock(text) {
-      var given = {}, pax = [], stray = [], last = '';
+      var given = {}, pax = [], stray = [], remarks = [];
+      var last = '', section = '', commentsRun = false;
       var lines = String(text == null ? '' : text)
         .replace(/[​-‍﻿]/g, '')
         .replace(/ /g, ' ')
         .split(/\r\n|\r|\n/);
+
       for (var i = 0; i < lines.length; i++) {
         var line = trimmed(lines[i]);
         if (!line) continue;
-        var at = line.indexOf(':');
-        var label = at > 0 ? letters(line.slice(0, at)) : '';
-        var field = (label && owns(LABELS, label)) ? LABELS[label] : '';
-        if (!field) {
-          if (last === 'comments') given.comments += '\n' + line;
-          else stray.push(line);
+
+        // A line of rules alone, such as the one drawn under each heading of
+        // the message, says nothing.
+        if (/^[\s─-╿‐-―\-_=*~.•·]+$/.test(line)) continue;
+
+        // The line without the marks of formatting at either end.
+        var bare = line.replace(/^[\s*_>•·\-]+/, '').replace(/[\s*_]+$/, '');
+
+        // Everything beneath the heading of the comments belongs to them.
+        if (commentsRun) {
+          given.comments = (given.comments ? given.comments + '\n' : '') + line;
           continue;
         }
-        // Asterisks and underscores left by a message copied with its
-        // formatting are dropped from the front of the value.
-        var value = trimmed(line.slice(at + 1).replace(/^[\s*_]+/, ''));
-        last = field;
-        if (field === 'pax') {
-          if (value) pax.push(value);
+
+        var at = line.indexOf(':');
+        var label = at > 0 ? letters(line.slice(0, at)) : '';
+        var field = (label && owns(LABELS, label)) ? placed(LABELS[label], section) : '';
+
+        if (field === 'skip') continue;
+
+        if (field) {
+          // Asterisks and underscores left by a message copied with its
+          // formatting are dropped from the value.
+          var value = trimmed(line.slice(at + 1).replace(/^[\s*_]+/, '').replace(/[\s*]+$/, ''));
+          last = field;
+          if (field === 'pax') {
+            if (value) pax.push(value);
+          } else {
+            given[field] = value;
+          }
+          continue;
+        }
+
+        // The opening line of the message: ARRIVAL or DEPARTURE, with the code.
+        var opener = /^(arrival|departure)\s*(\(.*)?$/i.exec(bare);
+        if (opener) {
+          given.travel = opener[1];
+          section = 'primary';
+          last = '';
+          continue;
+        }
+
+        var heading = letters(bare.replace(/\(.*$/, ''));
+        if (owns(SECTIONS, heading)) {
+          section = SECTIONS[heading];
+          last = '';
+          if (section === 'comments') commentsRun = true;
+          continue;
+        }
+
+        // An accompanying passenger as the message sets one out:
+        // "1. Name (Age: 53, Female)". The gender may itself carry brackets,
+        // as "Child (M)" does, so it runs to the last bracket of the line.
+        var numbered = /^\d+\s*[.)]\s*(.+?)\s*\(\s*age\s*:?\s*([^,)]*),\s*(.*)\)\s*;?$/i.exec(bare);
+        if (numbered) {
+          pax.push(numbered[1] + ' | ' + numbered[2] + ' | ' + numbered[3]);
+          continue;
+        }
+        if (section === 'pax') {
+          pax.push(bare.replace(/^\d+\s*[.)]\s*/, ''));
+          continue;
+        }
+
+        if (last === 'comments') {
+          given.comments += '\n' + line;
+          continue;
+        }
+        stray.push(line);
+      }
+
+      // A name given whole is divided at its last word.
+      if (given.fullName && !given.firstName && !given.lastName) {
+        var words = given.fullName.split(/\s+/);
+        if (words.length > 1) {
+          given.lastName = words.pop();
+          given.firstName = words.join(' ');
+          remarks.push('The name was divided into First Name "' + given.firstName +
+                       '" and Last Name "' + given.lastName + '".');
         } else {
-          given[field] = value;
+          given.firstName = given.fullName;
         }
       }
-      return { given: given, pax: pax, stray: stray };
+      delete given.fullName;
+
+      // The message shows the Type in brackets after the Designation.
+      if (given.paxDesignation) {
+        var tail = /^(.*\S)\s*\(([^()]*)\)$/.exec(given.paxDesignation);
+        var tailType = tail ? typeInBrackets(tail[2]) : '';
+        var stated = given.requestType ? readType(given.requestType) : '';
+        if (tailType && (!stated || stated === tailType)) {
+          given.paxDesignation = tail[1];
+          if (!given.requestType) given.requestType = tailType;
+        }
+      }
+
+      return { given: given, pax: pax, stray: stray, remarks: remarks };
     }
 
     /** A date as the date box holds it, YYYY-MM-DD, or an empty string. */
@@ -2380,6 +2551,7 @@
       lines.push('Filled in ' + filled + (filled === 1 ? ' field' : ' fields') +
                  (paxDone ? ' and ' + paxDone + ' accompanying passenger' + (paxDone === 1 ? '' : 's') : '') +
                  '. Kindly check the entries below, then press Submit via WhatsApp.');
+      for (i = 0; i < read.remarks.length; i++) lines.push(read.remarks[i]);
       if (missing.length) {
         lines.push('Still to be filled in by hand: ' + missing.join(', ') + '.');
       }
@@ -2393,6 +2565,9 @@
         lines.push('Not understood and left out: ' + shown.join('; ') +
                    (read.stray.length > 4 ? ' and ' + (read.stray.length - 4) + ' more' : '') + '.');
       }
+
+      // The box closes, leaving its note in view above the form.
+      setOpen(false);
       say((missing.length || notes.length || read.stray.length) ? 'warn' : 'ok', lines);
     }
 
