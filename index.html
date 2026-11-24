@@ -400,6 +400,55 @@
 
     .helper-text { font-size: 11.5px; color: #7a8a9e; margin-top: 3px; }
 
+    /* Quick fill: shown only where the address of the page ends in #quick */
+    .quick-fill {
+      background: #f8faf9;
+      border: 1.5px dashed #145a3e;
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 22px;
+    }
+    .quick-fill .quick-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #0d3b2e;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
+    }
+    .quick-fill textarea {
+      margin-top: 10px;
+      min-height: 104px;
+      background: #fff;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .quick-actions { display: flex; gap: 10px; margin-top: 10px; }
+    .quick-actions button {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1.5px solid #145a3e;
+      border-radius: 8px;
+      background: #fff;
+      color: #145a3e;
+      font-family: inherit;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .quick-actions button.primary { background: #145a3e; color: #fff; }
+    .quick-status {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      line-height: 1.6;
+    }
+    .quick-status div + div { margin-top: 4px; }
+    .quick-status.ok   { background: #eef6f1; color: #14563a; border: 1px solid #b9ddc8; }
+    .quick-status.warn { background: #fdf8ec; color: #6d5416; border: 1px solid #e3d3a6; }
+
     .whatsapp-note {
       text-align: center;
       margin-top: 12px;
@@ -441,6 +490,25 @@
   </div>
 
   <div class="form-body">
+
+    <!-- ==================== QUICK FILL ====================
+         Hidden unless the address of the page ends in #quick. A block of
+         particulars prepared elsewhere is pasted here and written into the
+         fields below. Nothing is sent from this box; the form is checked and
+         submitted in the ordinary way. -->
+    <div id="quickFill" class="quick-fill" style="display:none">
+      <div class="quick-title">Quick Fill</div>
+      <div class="helper-text">Paste the prepared details here. They are written into the form below for you to check. Nothing is sent until you press Submit.</div>
+      <textarea id="quickText" rows="5" spellcheck="false" autocomplete="off" autocapitalize="off"
+                aria-label="Details to be filled into the form"
+                placeholder="First Name: ...&#10;Last Name: ...&#10;Age: ..."></textarea>
+      <div class="quick-actions">
+        <button type="button" id="quickPasteBtn" class="primary">Paste and fill</button>
+        <button type="button" id="quickFillBtn">Fill form</button>
+      </div>
+      <div id="quickStatus" class="quick-status" style="display:none" role="status"></div>
+    </div>
+
     <form id="passengerForm" novalidate>
 
       <!-- ==================== PRIMARY PASSENGER INFORMATION ==================== -->
@@ -1941,6 +2009,432 @@
       onAnswer(d, signature, answer);
     });
   });
+</script>
+
+<!-- Quick fill is kept in a script of its own, so that a fault in it could
+     not disturb the form above. -->
+<script>
+  // ============================================================
+  // QUICK FILL
+  //
+  // Shown only where the address of the page ends in #quick. A block of
+  // particulars prepared elsewhere, one "Label: value" to a line, is pasted
+  // into the box and written into the fields of the form above, which is then
+  // checked and submitted in the ordinary way. Nothing is sent from here, and
+  // the form is unchanged for anyone who opens it without #quick.
+  //
+  // An accompanying passenger is written as "Passenger: Name | Age | Gender",
+  // one line for each. Lines that follow Comments and carry no label of their
+  // own are taken as more of the comments.
+  // ============================================================
+  (function () {
+    var panel    = document.getElementById('quickFill');
+    var box      = document.getElementById('quickText');
+    var pasteBtn = document.getElementById('quickPasteBtn');
+    var fillBtn  = document.getElementById('quickFillBtn');
+    var statusEl = document.getElementById('quickStatus');
+    var theForm  = document.getElementById('passengerForm');
+    var paxBox   = document.getElementById('paxContainer');
+    var addBtn   = document.getElementById('addPaxBtn');
+    var sendBtn  = document.getElementById('submitBtn');
+    if (!panel || !box || !pasteBtn || !fillBtn || !statusEl ||
+        !theForm || !paxBox || !addBtn || !sendBtn) return;
+
+    function showOrHide() {
+      panel.style.display = /^#quick$/i.test(window.location.hash || '') ? '' : 'none';
+    }
+    showOrHide();
+    window.addEventListener('hashchange', showOrHide);
+
+    var OTHERS_NAME = (typeof OTHERS === 'string' && OTHERS) ? OTHERS : 'Others';
+
+    // The labels understood, reduced to their letters, and what each one fills.
+    var LABELS = {
+      firstname: 'firstName',
+      lastname: 'lastName', surname: 'lastName',
+      age: 'paxAge',
+      phone: 'phone', phonenumber: 'phone', mobile: 'phone',
+      email: 'email', emailaddress: 'email',
+      designation: 'paxDesignation',
+      type: 'requestType',
+      department: 'paxDepartment', company: 'paxDepartment', departmentcompany: 'paxDepartment',
+      flight: 'flightNumber', flightnumber: 'flightNumber', flightno: 'flightNumber',
+      airline: 'airlineName', airlinename: 'airlineName',
+      date: 'flightDate', flightdate: 'flightDate',
+      time: 'flightTime', flighttime: 'flightTime',
+      travel: 'travel', traveltype: 'travel', arrivalordeparture: 'travel',
+      destination: 'destination', finaldestination: 'destination',
+      reference: 'referencePerson', referenceperson: 'referencePerson',
+      referencecontact: 'referenceContact', referencecontactnumber: 'referenceContact',
+      proname: 'proName', procontact: 'proContact',
+      prodesignation: 'proDesignation', prodepartment: 'proDepartment',
+      passenger: 'pax', pax: 'pax', accompanying: 'pax', accompanyingpassenger: 'pax',
+      comments: 'comments', comment: 'comments', additionalcomments: 'comments', remarks: 'comments'
+    };
+
+    // The names by which the fields are spoken of in the notes shown.
+    var TITLES = {
+      firstName: 'First Name', lastName: 'Last Name', paxAge: 'Age', phone: 'Phone Number',
+      email: 'Email Address', paxDesignation: 'Designation', requestType: 'Type',
+      paxDepartment: 'Department/Company', flightNumber: 'Flight Number',
+      airlineName: 'Airline Name', flightDate: 'Date', referencePerson: 'Reference Person',
+      referenceContact: 'Reference Contact Number', proName: 'PRO Name',
+      proContact: 'PRO Contact', proDesignation: 'PRO Designation',
+      proDepartment: 'PRO Department', comments: 'Comments'
+    };
+
+    // Fields that take what is written as it stands.
+    var PLAIN = ['firstName', 'lastName', 'phone', 'email', 'paxDesignation', 'paxDepartment',
+                 'flightNumber', 'airlineName', 'referencePerson', 'referenceContact',
+                 'proName', 'proContact', 'proDesignation', 'proDepartment', 'comments'];
+
+    function owns(object, key) {
+      return Object.prototype.hasOwnProperty.call(object, key);
+    }
+    function letters(s) {
+      return String(s == null ? '' : s).toLowerCase().replace(/[^a-z]/g, '');
+    }
+    function trimmed(s) {
+      return String(s == null ? '' : s).replace(/^\s+|\s+$/g, '');
+    }
+    function two(n) { return n < 10 ? '0' + n : String(n); }
+
+    function say(tone, lines) {
+      while (statusEl.firstChild) statusEl.removeChild(statusEl.firstChild);
+      statusEl.className = 'quick-status ' + tone;
+      for (var i = 0; i < lines.length; i++) {
+        var el = document.createElement('div');
+        el.textContent = lines[i];
+        statusEl.appendChild(el);
+      }
+      statusEl.style.display = '';
+      try { statusEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
+    }
+
+    /**
+     * The block as read: what was given under each label, the accompanying
+     * passengers in the order given, and any line that could not be placed.
+     */
+    function readBlock(text) {
+      var given = {}, pax = [], stray = [], last = '';
+      var lines = String(text == null ? '' : text)
+        .replace(/[​-‍﻿]/g, '')
+        .replace(/ /g, ' ')
+        .split(/\r\n|\r|\n/);
+      for (var i = 0; i < lines.length; i++) {
+        var line = trimmed(lines[i]);
+        if (!line) continue;
+        var at = line.indexOf(':');
+        var label = at > 0 ? letters(line.slice(0, at)) : '';
+        var field = (label && owns(LABELS, label)) ? LABELS[label] : '';
+        if (!field) {
+          if (last === 'comments') given.comments += '\n' + line;
+          else stray.push(line);
+          continue;
+        }
+        // Asterisks and underscores left by a message copied with its
+        // formatting are dropped from the front of the value.
+        var value = trimmed(line.slice(at + 1).replace(/^[\s*_]+/, ''));
+        last = field;
+        if (field === 'pax') {
+          if (value) pax.push(value);
+        } else {
+          given[field] = value;
+        }
+      }
+      return { given: given, pax: pax, stray: stray };
+    }
+
+    /** A date as the date box holds it, YYYY-MM-DD, or an empty string. */
+    function readDate(s) {
+      var months = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+                     jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+      var y = 0, m = 0, d = 0, t;
+      s = trimmed(s);
+      if ((t = /^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/.exec(s))) {
+        y = +t[1]; m = +t[2]; d = +t[3];
+      } else if ((t = /^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})$/.exec(s))) {
+        d = +t[1]; m = +t[2]; y = +t[3];
+      } else if ((t = /^(\d{1,2})[\s\-\/.]*([A-Za-z]{3,9})[\s\-\/.,]*(\d{4})$/.exec(s))) {
+        d = +t[1]; m = months[t[2].slice(0, 3).toLowerCase()] || 0; y = +t[3];
+      } else {
+        return '';
+      }
+      if (m < 1 || m > 12 || d < 1 || d > 31 || y < 2000 || y > 2100) return '';
+      var check = new Date(y, m - 1, d);
+      if (check.getFullYear() !== y || check.getMonth() !== m - 1 || check.getDate() !== d) return '';
+      return y + '-' + two(m) + '-' + two(d);
+    }
+
+    /** A time in the 24-hour form, as the two dropdowns hold it, or null. */
+    function readTime(s) {
+      var t = /^(\d{1,2})\s*[:.]?\s*(\d{2})$/.exec(
+        trimmed(trimmed(s).replace(/(hours|hour|hrs|hr|h)\.?$/i, '')));
+      if (!t) return null;
+      var h = parseInt(t[1], 10), m = parseInt(t[2], 10);
+      if (h > 23 || m > 59) return null;
+      return { hour: two(h), minute: two(m) };
+    }
+
+    function readAge(s) {
+      var t = /^(\d{1,3})$/.exec(trimmed(trimmed(s).replace(/(years|year|yrs|yr|y)\.?$/i, '')));
+      return t ? String(parseInt(t[1], 10)) : '';
+    }
+
+    function readType(s) {
+      var k = letters(s);
+      if (k.indexOf('official') === 0 || k.indexOf('gov') === 0) return 'Official/Government';
+      if (k.indexOf('priv') === 0) return 'Private';
+      if (k.indexOf('other') === 0) return 'Others';
+      return '';
+    }
+
+    function readTravel(s) {
+      var k = letters(s);
+      if (k.indexOf('arr') === 0) return 'Arrival';
+      if (k.indexOf('dep') === 0) return 'Departure';
+      return '';
+    }
+
+    function readGender(s) {
+      var k = letters(s);
+      if (k === 'm' || k === 'male') return 'Male';
+      if (k === 'f' || k === 'female') return 'Female';
+      if (k === 'childm' || k === 'childmale' || k === 'malechild' || k === 'boy') return 'Child (M)';
+      if (k === 'childf' || k === 'childfemale' || k === 'femalechild' || k === 'girl') return 'Child (F)';
+      if (k === 'infant' || k === 'baby') return 'Infant';
+      return '';
+    }
+
+    /** The form as it stands when first opened, so that nothing is left over
+     *  from an earlier entry. */
+    function startAfresh() {
+      theForm.reset();
+      while (paxBox.firstChild) paxBox.removeChild(paxBox.firstChild);
+      var all = theForm.elements;
+      for (var i = 0; i < all.length; i++) {
+        if (all[i].style) all[i].style.borderColor = '';
+      }
+      if (typeof syncDestination === 'function') syncDestination();
+      if (typeof clearStatus === 'function') clearStatus();
+    }
+
+    function fill(text) {
+      if (sendBtn.disabled) {
+        say('warn', ['A request is being recorded. Kindly wait a moment and try again.']);
+        return;
+      }
+
+      var read = readBlock(text);
+      var given = read.given;
+      var any = read.pax.length > 0;
+      for (var key in given) {
+        if (owns(given, key) && given[key]) any = true;
+      }
+      if (!any) {
+        say('warn', ['No details could be read. Each line should read as "Label: value", ' +
+                     'for example "First Name: Ali".']);
+        return;
+      }
+
+      var notes = [], filled = 0, i;
+
+      function put(id, value) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        var limit = parseInt(el.getAttribute('maxlength'), 10);
+        if (limit > 0 && value.length > limit) {
+          value = value.slice(0, limit);
+          notes.push(TITLES[id] + ' was longer than the form allows and has been shortened to ' +
+                     limit + ' characters.');
+        }
+        el.value = value;
+        filled++;
+      }
+
+      startAfresh();
+
+      for (i = 0; i < PLAIN.length; i++) {
+        var plain = trimmed(given[PLAIN[i]]);
+        if (plain) put(PLAIN[i], plain);
+      }
+
+      if (given.paxAge) {
+        var age = readAge(given.paxAge);
+        if (age) put('paxAge', age);
+        else notes.push('Age could not be read from "' + given.paxAge + '".');
+      }
+
+      if (given.requestType) {
+        var type = readType(given.requestType);
+        if (type) {
+          document.getElementById('requestType').value = type;
+          filled++;
+        } else {
+          notes.push('Type could not be read from "' + given.requestType +
+                     '". It should be Official/Government, Private or Others.');
+        }
+      }
+
+      if (given.flightDate) {
+        var date = readDate(given.flightDate);
+        if (date) {
+          document.getElementById('flightDate').value = date;
+          filled++;
+        } else {
+          notes.push('Date could not be read from "' + given.flightDate +
+                     '". It is best written in the form 25 Nov 2026.');
+        }
+      }
+
+      var hourEl = document.getElementById('flightHour');
+      var minuteEl = document.getElementById('flightMinute');
+      if (given.flightTime) {
+        var time = readTime(given.flightTime);
+        if (time) {
+          hourEl.value = time.hour;
+          minuteEl.value = time.minute;
+          filled++;
+        } else {
+          notes.push('Time could not be read from "' + given.flightTime +
+                     '". It should be in the 24-hour form, for example 04:15.');
+        }
+      }
+
+      var travel = given.travel ? readTravel(given.travel) : '';
+      if (given.travel && !travel) {
+        notes.push('Arrival or Departure could not be read from "' + given.travel + '".');
+      }
+      if (travel) {
+        document.getElementById(travel === 'Arrival' ? 'arrival' : 'departure').checked = true;
+        filled++;
+      }
+      // The form's own rule shows the destination for a departure and hides
+      // it for an arrival.
+      if (typeof syncDestination === 'function') syncDestination();
+
+      var destBox = document.getElementById('destinationInput');
+      var otherBox = document.getElementById('destinationOther');
+      if (given.destination) {
+        if (travel !== 'Departure') {
+          notes.push('Final Destination is recorded for departures only and has been left out.');
+        } else if (typeof chooseDestination === 'function' && typeof destinationByName === 'function') {
+          // A country the list knows is chosen from it, so that "Saudi Arabia"
+          // becomes KSA. Any other is written under Others, as by hand.
+          var country = destinationByName(given.destination);
+          if (country && country !== OTHERS_NAME) {
+            chooseDestination(country, true);
+          } else {
+            chooseDestination(OTHERS_NAME, true);
+            if (!country) {
+              var limit = parseInt(otherBox.getAttribute('maxlength'), 10) || 60;
+              otherBox.value = given.destination.slice(0, limit);
+            }
+          }
+          filled++;
+        }
+      }
+
+      var paxDone = 0;
+      for (i = 0; i < read.pax.length; i++) {
+        var parts = read.pax[i].split(read.pax[i].indexOf('|') !== -1 ? '|' : ',');
+        addBtn.click();
+        var entry = paxBox.lastElementChild;
+        if (!entry) continue;
+        var nameBox = entry.querySelector('.apName');
+        var ageBox = entry.querySelector('.apAge');
+        var genderBox = entry.querySelector('.apGender');
+        if (!nameBox || !ageBox || !genderBox) continue;
+        var paxName = trimmed(parts[0]).slice(0, 60);
+        var paxAge = readAge(parts[1]);
+        var paxGender = readGender(parts[2]);
+        nameBox.value = paxName;
+        ageBox.value = paxAge;
+        genderBox.value = paxGender;
+        paxDone++;
+        if (!paxName || !paxAge || !paxGender) {
+          notes.push('Accompanying passenger ' + (i + 1) + ' is incomplete and should be ' +
+                     'completed by hand. Each is written as "Name | Age | Gender".');
+        }
+      }
+
+      // What the form will still ask for when Submit is pressed.
+      var missing = [];
+      function need(id) {
+        var el = document.getElementById(id);
+        if (el && !trimmed(el.value)) missing.push(TITLES[id]);
+      }
+      need('firstName'); need('lastName'); need('paxAge'); need('phone'); need('email');
+      need('paxDesignation'); need('requestType'); need('paxDepartment');
+      need('flightNumber'); need('airlineName'); need('flightDate');
+      if (!hourEl.value || !minuteEl.value) missing.push('Time');
+      if (!travel) missing.push('Arrival or Departure');
+      if (travel === 'Departure' &&
+          (!trimmed(destBox.value) ||
+           (destBox.value === OTHERS_NAME && !trimmed(otherBox.value)))) {
+        missing.push('Final Destination');
+      }
+      need('referenceContact');
+
+      var lines = [];
+      lines.push('Filled in ' + filled + (filled === 1 ? ' field' : ' fields') +
+                 (paxDone ? ' and ' + paxDone + ' accompanying passenger' + (paxDone === 1 ? '' : 's') : '') +
+                 '. Kindly check the entries below, then press Submit via WhatsApp.');
+      if (missing.length) {
+        lines.push('Still to be filled in by hand: ' + missing.join(', ') + '.');
+      }
+      for (i = 0; i < notes.length; i++) lines.push(notes[i]);
+      if (read.stray.length) {
+        var shown = [];
+        for (i = 0; i < read.stray.length && i < 4; i++) {
+          var stray = read.stray[i];
+          shown.push('"' + (stray.length > 50 ? stray.slice(0, 50) + '…' : stray) + '"');
+        }
+        lines.push('Not understood and left out: ' + shown.join('; ') +
+                   (read.stray.length > 4 ? ' and ' + (read.stray.length - 4) + ' more' : '') + '.');
+      }
+      say((missing.length || notes.length || read.stray.length) ? 'warn' : 'ok', lines);
+    }
+
+    function fillSafely(text) {
+      try {
+        fill(text);
+      } catch (e) {
+        say('warn', ['The details could not be filled in automatically. ' +
+                     'Kindly fill in the form by hand.']);
+      }
+    }
+
+    fillBtn.addEventListener('click', function () { fillSafely(box.value); });
+
+    // Pasting into the box fills the form at once, without a further press.
+    box.addEventListener('paste', function () {
+      setTimeout(function () { fillSafely(box.value); }, 0);
+    });
+
+    // Where the browser allows the clipboard to be read, one press does both.
+    pasteBtn.addEventListener('click', function () {
+      function byHand() {
+        say('warn', ['The clipboard could not be read here. Kindly press and hold inside ' +
+                     'the box and choose Paste; the form is then filled at once.']);
+        try { box.focus(); } catch (e) {}
+      }
+      try {
+        if (navigator.clipboard && typeof navigator.clipboard.readText === 'function') {
+          navigator.clipboard.readText().then(function (text) {
+            if (text && /\S/.test(text)) {
+              box.value = text;
+              fillSafely(text);
+            } else {
+              say('warn', ['The clipboard holds no text. Kindly copy the details first.']);
+            }
+          }, byHand);
+          return;
+        }
+      } catch (e) {}
+      byHand();
+    });
+  })();
 </script>
 
 </body>
